@@ -1,0 +1,6 @@
+handover/
+CLAUDE.local.md
+.claude/
+build/
+*.keystore
+.DS_Store

@@ -1,0 +1,6 @@
+id=stremio_voice
+name=Stremio Voice
+version=1.0
+versionCode=1
+author=metaljay
+description=Hold the voice button and say a title: Stremio opens its search results.
