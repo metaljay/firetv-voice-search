@@ -133,7 +133,7 @@ public class VoiceService extends Service {
         final int mine = ++session;
         main.removeCallbacksAndMessages(null);
 
-        bar.show("Listening…");
+        bar.showListening();
         main.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -165,7 +165,7 @@ public class VoiceService extends Service {
         if (!active || released) return;
         released = true;
         final int mine = session;
-        bar.show("Searching…");
+        bar.showSearching();
         try {
             recognizer.stopListening();
             Log.i(TAG, "stopListening called");
@@ -227,7 +227,7 @@ public class VoiceService extends Service {
         }
         final int mine = session;
         main.removeCallbacksAndMessages(null);
-        bar.show("Searching…");
+        bar.showSearching();
         openStremio(words);
         active = false;
         released = false;
