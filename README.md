@@ -20,7 +20,7 @@ On a stock stick the voice button belongs to Alexa. Say a plain title and you la
 - **Let go:** lead-ins and tails such as "play", "watch", "search for" and "on Stremio" are dropped, and the words left are searched in your chosen app:
   - **Stremio** opens on its own search results.
   - **Nuvio** has no way for another app to start a search, so a row of matching posters appears instead (films and TV together, best matches first). Pick one with the remote and Nuvio opens on it. Back closes the row.
-- **Choosing the app:** open **Voice Search** from the apps row and pick Stremio or Nuvio. Apps that aren't installed are greyed out. If you never choose, it uses whichever supported app is installed (Stremio first if both are).
+- **Choosing the app:** open the **Voice Search** tile in Your Apps & Channels, or hold the voice button and say **"Voice settings"** (or "Voice Search settings"). Pick Stremio or Nuvio; the screen confirms with "Saved", and **Done** closes it. Apps that aren't installed are greyed out. If you never choose, it uses whichever supported app is installed (Stremio first if both are).
 - **Say nothing:** nothing happens.
 - **If the app stops running:** the button goes back to Alexa within about 10 seconds, and the app is restarted.
 
@@ -59,9 +59,9 @@ Give it about a minute after the restart, then hold the voice button.
 
 ## Remove
 
-- **Switch off:** create the file `/data/adb/modules/stremio_voice/disable` as root, then restart. Alexa has the button again and the app is gone.
+- **Switch off:** create the file `/data/adb/modules/stremio_voice/disable` as root, then restart. Alexa has the button again and the app is gone. The Voice Search tile stays and only shows a message that the add-on is off.
 - **Switch back on:** delete that file and restart.
-- **Uninstall for good:** create `/data/adb/modules/stremio_voice/remove` and restart, or remove it in the Magisk app.
+- **Uninstall for good:** create `/data/adb/modules/stremio_voice/remove` and restart, or remove it in the Magisk app. Then uninstall the **Voice Search** tile app (`com.metaljay.voicesearchtile`) in Settings, Applications; on its own it only shows a message that the add-on is gone. (While the add-on is installed, an uninstalled tile comes back at the next restart.)
 
 ## How it works
 
@@ -69,7 +69,8 @@ Give it about a minute after the restart, then hold the voice button.
 2. A small system app (`com.metaljay.stremiovoice`) listens for that broadcast. On button-down it starts the speech-to-text service that ships inside Alexa's own app, a standard Android `RecognitionService`, and shows the bar. On button-up it stops listening.
 3. The words that come back are tidied (`QueryCleaner`: "Alexa, play Peppa Pig please" becomes `peppa pig`). For Stremio they are opened with `stremio:///search?search=<words>`. For Nuvio, which only accepts links to one title, the pick-list (`ResultsActivity`) looks the words up in Cinemeta's film and series catalogues, orders them (`ResultRanker`: popularity first, with a small penalty for weaker name matches) and opens the chosen one with `nuvio://movie/<imdb id>` or `nuvio://series/<imdb id>`.
 4. The Magisk module installs the app in `priv-app`, because the speech service needs a `signature|privileged` permission, and runs a small watchdog every 10 seconds. While the app is alive it keeps the switch on. If the app dies, the switch goes off, Alexa gets the button back, and the app is restarted.
-5. Early in each boot, `post-fs-data.sh` clears Android's cached details for this app when the app file has changed. Without it, an updated module kept the old version's details: Android trusts its cache while the cache is newer than the app's folder, and through Magisk that folder shows the boot-time clock, which on Fire TV reads 1 Jan 2022.
+5. Amazon's home screen hides system apps, so the settings screen can't have a tile of its own. The module carries a second, ordinary app (`com.metaljay.voicesearchtile`, in `tile/`) whose only job is to show a **Voice Search** tile and open the settings screen. `service.sh` installs it at boot when it is missing or has changed.
+6. Early in each boot, `post-fs-data.sh` clears Android's cached details for this app when the app file has changed. Without it, an updated module kept the old version's details: Android trusts its cache while the cache is newer than the app's folder, and through Magisk that folder shows the boot-time clock, which on Fire TV reads 1 Jan 2022.
 
 There are no hooks, no Zygisk, and no patched or replaced Amazon files. Recognition uses whichever language Alexa is set to on the stick.
 
@@ -79,7 +80,7 @@ The build script was written on macOS and downloads nothing. It needs a JDK (25 
 
 ```bash
 ./build.sh test   # unit tests: word tidying, choosing the app, ordering results
-./build.sh        # tests, then build/StremioVoice.apk and build/stremio_voice.zip
+./build.sh        # tests, then build/StremioVoice.apk, build/VoiceSearchTile.apk and build/stremio_voice.zip
 ```
 
 The first build creates `debug.keystore` (git-ignored). Keep it: updates installed with `adb install -r` must be signed with the same key.
@@ -116,6 +117,7 @@ Please include the device, the full Fire OS version, the Magisk version, the mod
 |---|---|
 | `build.sh` | test and build script |
 | `app/` | the Android app (plain Java, no libraries) |
+| `tile/` | the small tile app that opens the settings screen |
 | `test/` | plain-Java tests for `QueryCleaner`, `Targets` and `ResultRanker` |
 | `module/` | the Magisk module: `module.prop`, `post-fs-data.sh`, `service.sh`, the permission whitelist |
 | `docs/` | screenshots |

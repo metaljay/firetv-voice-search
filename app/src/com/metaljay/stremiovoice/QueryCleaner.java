@@ -19,7 +19,24 @@ public final class QueryCleaner {
         "on stremio", "in stremio", "on nuvio", "in nuvio", "please",
     };
 
+    // Spoken words (after clean()) that open the Voice Search settings screen instead of searching.
+    private static final String[] SETTINGS_PHRASES = {
+        "voice search settings", "voice search setting", "voice search setup", "voice search set up",
+        "voice settings", "voice setting",
+    };
+
     private QueryCleaner() {}
+
+    /** True if the cleaned words ask for the settings screen, e.g. "voice search settings". */
+    public static boolean isSettingsRequest(String cleaned) {
+        if (cleaned == null) return false;
+        String s = cleaned.trim();
+        if (s.startsWith("open ")) s = s.substring(5).trim();
+        for (String phrase : SETTINGS_PHRASES) {
+            if (s.equals(phrase)) return true;
+        }
+        return false;
+    }
 
     public static String clean(String spoken) {
         if (spoken == null) return "";

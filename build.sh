@@ -6,7 +6,8 @@
 #
 # Outputs (in build/, which git ignores):
 #   build/StremioVoice.apk     the signed app
-#   build/stremio_voice.zip    the Magisk add-on
+#   build/VoiceSearchTile.apk  the small tile app that opens the settings screen
+#   build/stremio_voice.zip    the Magisk add-on (carries both)
 #
 # The signing key is debug.keystore in this folder. It is created the first
 # time and then kept, so `adb install -r` updates keep working. Do not delete it.
@@ -79,13 +80,37 @@ build_apk() {
     echo "Built build/StremioVoice.apk"
 }
 
+# The tile: a tiny ordinary app, so Amazon's home screen shows a "Voice Search"
+# tile (it hides system apps). It reuses the main app's icon and banner.
+build_tile() {
+    echo "== Tile app"
+    rm -rf build/tile && mkdir -p build/tile/classes build/tile/dex
+    # shellcheck disable=SC2046
+    "$JAVAC" --release 8 -Xlint:-options -Xlint:all -d build/tile/classes \
+        -classpath "$ANDROID_JAR" $(find tile/src -name '*.java')
+    "$BUILD_TOOLS/d8" --lib "$ANDROID_JAR" --min-api 28 --output build/tile/dex \
+        $(find build/tile/classes -name '*.class')
+    "$BUILD_TOOLS/aapt2" link --manifest tile/AndroidManifest.xml -I "$ANDROID_JAR" \
+        -R build/res/compiled.zip --auto-add-overlay \
+        --min-sdk-version 28 --target-sdk-version 29 -o build/tile/unaligned.apk
+    zip -q -j build/tile/unaligned.apk build/tile/dex/classes.dex
+    "$BUILD_TOOLS/zipalign" -f -p 4 build/tile/unaligned.apk build/tile/aligned.apk
+    "$BUILD_TOOLS/apksigner" -J-enable-native-access=ALL-UNNAMED sign --ks "$KEYSTORE" --ks-key-alias "$KEY_ALIAS" \
+        --ks-pass "pass:$KEY_PASS" --key-pass "pass:$KEY_PASS" \
+        --out build/VoiceSearchTile.apk build/tile/aligned.apk
+    "$BUILD_TOOLS/apksigner" -J-enable-native-access=ALL-UNNAMED verify build/VoiceSearchTile.apk
+    echo "Built build/VoiceSearchTile.apk"
+}
+
 build_module() {
     echo "== Add-on zip"
     rm -rf build/module build/stremio_voice.zip
     mkdir -p build/module/system/priv-app/StremioVoice
     cp -R module/. build/module/
     cp build/StremioVoice.apk build/module/system/priv-app/StremioVoice/StremioVoice.apk
-    (cd build/module && zip -q -X -D -r ../stremio_voice.zip module.prop post-fs-data.sh service.sh system)
+    mkdir -p build/module/tile
+    cp build/VoiceSearchTile.apk build/module/tile/VoiceSearchTile.apk
+    (cd build/module && zip -q -X -D -r ../stremio_voice.zip module.prop post-fs-data.sh service.sh system tile)
     unzip -l build/stremio_voice.zip
     echo "Built build/stremio_voice.zip"
 }
@@ -97,6 +122,7 @@ case "${1:-build}" in
     build)
         run_tests
         build_apk
+        build_tile
         build_module
         ;;
     *)

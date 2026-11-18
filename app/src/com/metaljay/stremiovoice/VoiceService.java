@@ -225,13 +225,11 @@ public class VoiceService extends Service {
         }
         final int mine = session;
         main.removeCallbacksAndMessages(null);
-        Targets.Target target = openTarget(words);
-        if (target == null) {
-            bar.showMessage("No app to search in");
-        } else if (target.mode == Targets.Mode.PICK_LIST) {
-            bar.hide(); // the pick-list shows its own "Searching for …"
+        if (QueryCleaner.isSettingsRequest(words)) {
+            openSettings();
+            bar.hide();
         } else {
-            bar.showSearching();
+            showTargetResult(openTarget(words));
         }
         active = false;
         released = false;
@@ -241,6 +239,28 @@ public class VoiceService extends Service {
                 if (session == mine && !active) bar.hide();
             }
         }, BAR_LINGER_MS);
+    }
+
+    private void showTargetResult(Targets.Target target) {
+        if (target == null) {
+            bar.showMessage("No app to search in");
+        } else if (target.mode == Targets.Mode.PICK_LIST) {
+            bar.hide(); // the pick-list shows its own "Searching for …"
+        } else {
+            bar.showSearching();
+        }
+    }
+
+    /** "Voice Search settings": opens the screen for choosing the app, from whatever screen is showing. */
+    private void openSettings() {
+        Intent open = new Intent(this, ChooserActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        try {
+            startActivity(open);
+            Log.i(TAG, "opened settings");
+        } catch (RuntimeException e) {
+            Log.e(TAG, "could not open settings", e);
+        }
     }
 
     /** Opens the chosen app's results for the words. Returns the app, or null if none is installed. */

@@ -41,7 +41,8 @@
             </intent-filter>
         </receiver>
 
-        <!-- The "Voice Search" settings screen in the apps row: choose the app to search in. -->
+        <!-- The Voice Search settings screen: choose the app to search in. Opened from the
+             Voice Search tile app or by voice (Amazon's home screen hides system apps). -->
         <activity
             android:name=".ChooserActivity"
             android:exported="true"

@@ -13,6 +13,13 @@ public class QueryCleanerTest {
                 + (ok ? "" : " (expected \"" + expected + "\")"));
     }
 
+    private static void settings(String spoken, boolean expected) {
+        boolean actual = QueryCleaner.isSettingsRequest(QueryCleaner.clean(spoken));
+        boolean ok = actual == expected;
+        if (!ok) failures++;
+        System.out.println((ok ? "PASS " : "FAIL ") + "settings? \"" + spoken + "\" -> " + actual);
+    }
+
     public static void main(String[] args) {
         // The cases from the brief.
         check("play Peppa Pig", "peppa pig");
@@ -45,6 +52,17 @@ public class QueryCleanerTest {
         check("Frozen on Nuvio", "frozen");
         check("play Bluey in Nuvio please", "bluey");
         check("on nuvio", "");
+
+        // Spoken settings (2.0): checked on the cleaned words, as the service does.
+        settings("Voice Search settings", true);
+        settings("Alexa, open voice search settings please", true);
+        settings("voice settings", true);
+        settings("Voice search setup", true);
+        settings("play voice search settings", true);
+        settings("Bluey", false);
+        settings("voice search", false);
+        settings("The Voice", false);
+        settings("", false);
 
         if (failures > 0) {
             System.out.println(failures + " test(s) FAILED");

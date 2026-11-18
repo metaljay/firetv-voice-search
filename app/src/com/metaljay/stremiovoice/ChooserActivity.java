@@ -1,7 +1,6 @@
 package com.metaljay.stremiovoice;
 
 import android.app.Activity;
-import android.app.ActivityManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -13,14 +12,17 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.util.HashSet;
 import java.util.Set;
 
 /**
- * The "Voice Search" screen in the Fire TV apps row: choose which app the
- * voice button searches in. The choice is saved at once and read on every
+ * The Voice Search settings screen: choose which app the voice button
+ * searches in. Opened from the small "Voice Search" tile app (Amazon's home
+ * screen hides system apps such as this one) or by saying "Voice Search
+ * settings". The choice is saved at once and read on every
  * search, so nothing needs restarting. Also holds the small helpers the
  * service uses to read that choice.
  */
@@ -35,7 +37,8 @@ public class ChooserActivity extends Activity {
     static final int GREY = 0xFFA9B4C8;
 
     private LinearLayout rows;
-    private TextView status;
+    private TextView saved;
+    private View done;
 
     // ----- helpers shared with the service -----
 
@@ -78,25 +81,51 @@ public class ChooserActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BACKGROUND);
-        root.setPadding(dp(96), dp(64), dp(96), dp(48));
+        root.setPadding(dp(96), dp(44), dp(96), dp(32));
 
         TextView title = text("Voice Search", 34, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(title);
 
         TextView intro = text("Hold the voice button and say a title. Results open in:", 18, GREY);
-        intro.setPadding(0, dp(12), 0, dp(28));
+        intro.setPadding(0, dp(8), 0, dp(20));
         root.addView(intro);
 
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         root.addView(rows);
 
-        status = text("", 16, GREY);
-        status.setPadding(0, dp(32), 0, 0);
-        root.addView(status);
+        // Bottom row: the Done button, and beside it which app has the button, and how to come back.
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setOrientation(LinearLayout.HORIZONTAL);
+        bottom.setGravity(Gravity.CENTER_VERTICAL);
+        bottom.setPadding(0, dp(8), 0, 0);
+        root.addView(bottom);
 
-        setContentView(root);
+        done = doneButton();
+        bottom.addView(done);
+
+        LinearLayout notes = new LinearLayout(this);
+        notes.setOrientation(LinearLayout.VERTICAL);
+        notes.setPadding(dp(32), 0, 0, 0);
+        bottom.addView(notes, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        // Which app has the voice button; starts with "Saved" once a choice is made.
+        saved = text("", 20, ACCENT);
+        saved.setTypeface(Typeface.DEFAULT_BOLD);
+        notes.addView(saved);
+
+        TextView hint = text("To come back here, hold the voice button and say \"Voice settings\".", 15, GREY);
+        hint.setPadding(0, dp(4), 0, 0);
+        notes.addView(hint);
+
+        // Scrolls if a smaller screen can't fit it all; the remote's focus scrolls it.
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(BACKGROUND);
+        scroll.addView(root);
+        setContentView(scroll);
     }
 
     @Override
@@ -109,7 +138,6 @@ public class ChooserActivity extends Activity {
     private void refresh(String focusId) {
         rows.removeAllViews();
         Targets.Target current = current(this);
-        boolean chosenByHand = Targets.byId(savedTargetId(this)) == current && current != null;
         View focus = null;
 
         for (final Targets.Target t : Targets.ALL) {
@@ -122,20 +150,18 @@ public class ChooserActivity extends Activity {
         if (focus == null && rows.getChildCount() > 0) focus = rows.getChildAt(0);
         if (focus != null) focus.requestFocus();
 
-        String app = current == null ? "none: install Stremio or Nuvio"
-                : current.name + (chosenByHand ? "" : " (chosen automatically)");
-        status.setText("Searching in: " + app + "\nVoice button: "
-                + (serviceRunning() ? "ready" : "not running"));
+        saved.setText(current == null ? "Install Stremio or Nuvio to use voice search."
+                : "The voice button searches in " + current.name + ".");
     }
 
     private View row(final Targets.Target t, boolean installed, boolean selected) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(28), dp(20), dp(28), dp(20));
+        row.setPadding(dp(28), dp(14), dp(28), dp(14));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(16);
+        lp.bottomMargin = dp(12);
         row.setLayoutParams(lp);
 
         final GradientDrawable bg = new GradientDrawable();
@@ -171,18 +197,41 @@ public class ChooserActivity extends Activity {
             public void onClick(View v) {
                 saveTargetId(ChooserActivity.this, t.id);
                 refresh(t.id);
+                saved.setText("Saved \u2713  The voice button now searches in " + t.name + ".");
+                done.requestFocus(); // one more press closes the screen
             }
         });
         return row;
     }
 
-    @SuppressWarnings("deprecation") // still returns this app's own services, which is all we need
-    private boolean serviceRunning() {
-        ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo s : am.getRunningServices(50)) {
-            if (VoiceService.class.getName().equals(s.service.getClassName())) return true;
-        }
-        return false;
+    /** "Done": closes the screen, back to where it was opened from (Home, from the tile). */
+    private View doneButton() {
+        TextView b = text("Done", 22, Color.WHITE);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(dp(48), dp(14), dp(48), dp(14));
+        final GradientDrawable bg = new GradientDrawable();
+        bg.setColor(CARD);
+        bg.setCornerRadius(dp(16));
+        b.setBackground(bg);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        b.setLayoutParams(lp);
+        b.setFocusable(true);
+        b.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                bg.setStroke(hasFocus ? dp(4) : 0, Color.WHITE);
+                bg.setColor(hasFocus ? ACCENT : CARD);
+                ((TextView) v).setTextColor(hasFocus ? BACKGROUND : Color.WHITE);
+            }
+        });
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+            }
+        });
+        return b;
     }
 
     private TextView text(String s, int sp, int color) {
