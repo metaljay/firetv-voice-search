@@ -1,6 +1,6 @@
 id=stremio_voice
 name=Fire TV Voice Search
-version=2.0
-versionCode=4
+version=2.1
+versionCode=5
 author=metaljay
 description=Hold the voice button and say a title: results open in Stremio or Nuvio (choose in the Voice Search app).
