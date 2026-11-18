@@ -41,6 +41,11 @@ public class QueryCleanerTest {
         check("please", "");
         check("on stremio", "");
 
+        // Nuvio (2.0).
+        check("Frozen on Nuvio", "frozen");
+        check("play Bluey in Nuvio please", "bluey");
+        check("on nuvio", "");
+
         if (failures > 0) {
             System.out.println(failures + " test(s) FAILED");
             System.exit(1);

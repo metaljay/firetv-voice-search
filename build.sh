@@ -1,5 +1,5 @@
 #!/bin/bash
-# Stremio Voice build script. Uses only tools already on the Mac; downloads nothing.
+# Voice Search build script. Uses only tools already on the Mac; downloads nothing.
 #
 #   ./build.sh test   run the unit tests
 #   ./build.sh        run the tests, build the APK, and assemble the Magisk add-on zip
@@ -32,9 +32,15 @@ run_tests() {
     echo "== Unit tests"
     rm -rf build/test-classes
     mkdir -p build/test-classes
+    # Only the plain-Java classes are tested here; they use no Android classes.
     "$JAVAC" -Xlint:-options -d build/test-classes \
-        "$APP_SRC/com/metaljay/stremiovoice/QueryCleaner.java" test/QueryCleanerTest.java
+        "$APP_SRC/com/metaljay/stremiovoice/QueryCleaner.java" \
+        "$APP_SRC/com/metaljay/stremiovoice/Targets.java" \
+        "$APP_SRC/com/metaljay/stremiovoice/ResultRanker.java" \
+        test/QueryCleanerTest.java test/TargetsTest.java test/ResultRankerTest.java
     "$JAVA" -cp build/test-classes QueryCleanerTest
+    "$JAVA" -cp build/test-classes TargetsTest
+    "$JAVA" -cp build/test-classes ResultRankerTest
 }
 
 build_apk() {
@@ -50,7 +56,10 @@ build_apk() {
         $(find build/classes -name '*.class')
 
     echo "== Package"
+    rm -rf build/res && mkdir -p build/res
+    "$BUILD_TOOLS/aapt2" compile --dir app/res -o build/res/compiled.zip
     "$BUILD_TOOLS/aapt2" link --manifest app/AndroidManifest.xml -I "$ANDROID_JAR" \
+        -R build/res/compiled.zip --auto-add-overlay \
         --min-sdk-version 28 --target-sdk-version 29 -o build/apk/base.apk
     cp build/apk/base.apk build/apk/unaligned.apk
     zip -q -j build/apk/unaligned.apk build/dex/classes.dex
@@ -76,7 +85,7 @@ build_module() {
     mkdir -p build/module/system/priv-app/StremioVoice
     cp -R module/. build/module/
     cp build/StremioVoice.apk build/module/system/priv-app/StremioVoice/StremioVoice.apk
-    (cd build/module && zip -q -X -D -r ../stremio_voice.zip module.prop service.sh system)
+    (cd build/module && zip -q -X -D -r ../stremio_voice.zip module.prop post-fs-data.sh service.sh system)
     unzip -l build/stremio_voice.zip
     echo "Built build/stremio_voice.zip"
 }

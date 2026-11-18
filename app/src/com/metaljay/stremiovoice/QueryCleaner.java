@@ -16,7 +16,7 @@ public final class QueryCleaner {
     };
 
     private static final String[] TAILS = {
-        "on stremio", "in stremio", "please",
+        "on stremio", "in stremio", "on nuvio", "in nuvio", "please",
     };
 
     private QueryCleaner() {}

@@ -39,8 +39,6 @@ public class VoiceService extends Service {
     private static final String EXTRA_KEY_EVENT = "KeyEvent";
     private static final ComponentName SPEECH_SERVICE = new ComponentName(
             "com.amazon.vizzini", "com.amazon.vizzini.voiceservice.SpeechToTextService");
-    private static final String STREMIO_PACKAGE = "com.stremio.one";
-
     private static final String CHANNEL_ID = "stremio_voice";
     private static final int NOTIFICATION_ID = 1;
 
@@ -115,9 +113,9 @@ public class VoiceService extends Service {
     private void startInForeground() {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         nm.createNotificationChannel(new NotificationChannel(
-                CHANNEL_ID, "Stremio Voice", NotificationManager.IMPORTANCE_MIN));
+                CHANNEL_ID, "Voice Search", NotificationManager.IMPORTANCE_MIN));
         Notification n = new Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("Stremio Voice")
+                .setContentTitle("Voice Search")
                 .setContentText("Listening for the voice button")
                 .setSmallIcon(Icon.createWithResource("android", android.R.drawable.ic_btn_speak_now))
                 .build();
@@ -227,8 +225,14 @@ public class VoiceService extends Service {
         }
         final int mine = session;
         main.removeCallbacksAndMessages(null);
-        bar.showSearching();
-        openStremio(words);
+        Targets.Target target = openTarget(words);
+        if (target == null) {
+            bar.showMessage("No app to search in");
+        } else if (target.mode == Targets.Mode.PICK_LIST) {
+            bar.hide(); // the pick-list shows its own "Searching for …"
+        } else {
+            bar.showSearching();
+        }
         active = false;
         released = false;
         main.postDelayed(new Runnable() {
@@ -239,17 +243,31 @@ public class VoiceService extends Service {
         }, BAR_LINGER_MS);
     }
 
-    private void openStremio(String words) {
-        Uri uri = Uri.parse("stremio:///search?search=" + Uri.encode(words));
-        Intent open = new Intent(Intent.ACTION_VIEW, uri)
-                .setPackage(STREMIO_PACKAGE)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    /** Opens the chosen app's results for the words. Returns the app, or null if none is installed. */
+    private Targets.Target openTarget(String words) {
+        Targets.Target target = ChooserActivity.current(this);
+        if (target == null) {
+            Log.w(TAG, "no supported app installed");
+            return null;
+        }
+        Intent open;
+        if (target.mode == Targets.Mode.APP_SEARCH) {
+            Uri uri = Uri.parse(target.searchLink + Uri.encode(words));
+            open = new Intent(Intent.ACTION_VIEW, uri).setPackage(target.packageName);
+        } else {
+            open = new Intent(this, ResultsActivity.class)
+                    .putExtra(ResultsActivity.EXTRA_WORDS, words)
+                    .putExtra(ResultsActivity.EXTRA_TARGET, target.id)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        }
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             startActivity(open);
-            Log.i(TAG, "opened " + uri);
+            Log.i(TAG, "opened " + target.name + " for \"" + words + "\"");
         } catch (RuntimeException e) {
-            Log.e(TAG, "could not open Stremio", e);
+            Log.e(TAG, "could not open " + target.name, e);
         }
+        return target;
     }
 
     private static String errorName(int code) {

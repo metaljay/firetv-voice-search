@@ -56,6 +56,14 @@ public class ListeningBar {
         startRipple(800);
     }
 
+    /** A short notice with the wave at rest, e.g. when there is no app to search in. */
+    public void showMessage(String text) {
+        if (!ensureShown()) return;
+        label.setText(text);
+        wave.setSearching(false);
+        stopRipple();
+    }
+
     public void hide() {
         stopRipple();
         if (root != null) {

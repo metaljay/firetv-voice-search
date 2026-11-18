@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Stremio Voice: runs as root late in every boot (Magisk "late_start service").
+# Voice Search: runs as root late in every boot (Magisk "late_start service").
 #
 # 1. Waits for the system, then gives the app the two things it needs.
 # 2. Starts the app's service.

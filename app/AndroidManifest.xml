@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    The package name keeps its original "stremiovoice" spelling on purpose: changing it
+    would make sticks that already have the add-on install a second copy instead of updating.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.metaljay.stremiovoice"
-    android:versionCode="3"
-    android:versionName="1.2">
+    android:versionCode="4"
+    android:versionName="2.0">
 
     <uses-sdk
         android:minSdkVersion="28"
@@ -13,9 +17,16 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- The pick-list looks titles up in the catalogue. An ordinary permission, granted at install. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
-        android:label="Stremio Voice"
+        android:label="Voice Search"
+        android:icon="@drawable/ic_voice"
+        android:banner="@drawable/banner"
         android:allowBackup="false">
 
         <service
@@ -29,6 +40,26 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- The "Voice Search" settings screen in the apps row: choose the app to search in. -->
+        <activity
+            android:name=".ChooserActivity"
+            android:exported="true"
+            android:label="Voice Search"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The pick-list, opened only by the service. -->
+        <activity
+            android:name=".ResultsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.metaljay.stremiovoice.results"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
     </application>
 </manifest>
