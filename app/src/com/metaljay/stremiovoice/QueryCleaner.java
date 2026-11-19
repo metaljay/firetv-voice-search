@@ -16,7 +16,10 @@ public final class QueryCleaner {
     };
 
     private static final String[] TAILS = {
-        "on stremio", "in stremio", "on nuvio", "in nuvio", "please",
+        "on stremio", "in stremio", "on nuvio", "in nuvio",
+        // WuPlay, and how speech-to-text may spell it.
+        "on wuplay", "in wuplay", "on wu play", "in wu play", "on woo play", "in woo play",
+        "please",
     };
 
     // Spoken words (after clean()) that open the Voice Search settings screen instead of searching.

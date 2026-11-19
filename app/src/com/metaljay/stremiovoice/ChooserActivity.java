@@ -150,7 +150,7 @@ public class ChooserActivity extends Activity {
         if (focus == null && rows.getChildCount() > 0) focus = rows.getChildAt(0);
         if (focus != null) focus.requestFocus();
 
-        saved.setText(current == null ? "Install Stremio or Nuvio to use voice search."
+        saved.setText(current == null ? "Install Stremio, Nuvio or WuPlay to use voice search."
                 : "The voice button searches in " + current.name + ".");
     }
 

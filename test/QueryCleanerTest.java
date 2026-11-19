@@ -53,6 +53,12 @@ public class QueryCleanerTest {
         check("play Bluey in Nuvio please", "bluey");
         check("on nuvio", "");
 
+        // WuPlay (2.2), including likely speech-to-text spellings.
+        check("Frozen on WuPlay", "frozen");
+        check("play Bluey in wu play please", "bluey");
+        check("Moana on woo play", "moana");
+        check("on wuplay", "");
+
         // Spoken settings (2.0): checked on the cleaned words, as the service does.
         settings("Voice Search settings", true);
         settings("Alexa, open voice search settings please", true);

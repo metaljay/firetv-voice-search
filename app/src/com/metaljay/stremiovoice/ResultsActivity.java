@@ -40,7 +40,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
- * The pick-list for apps that cannot search for words themselves (Nuvio).
+ * The pick-list for apps that cannot search for words themselves (Nuvio, WuPlay).
  * Looks the spoken words up in Cinemeta, the free catalogue Stremio and Nuvio
  * both use, shows one row of posters, and opens the chosen title in the app.
  * Back closes it.

@@ -42,6 +42,13 @@ public class TargetsTest {
                 Targets.choose(null, installed(nuvio)));
         check("unknown saved id, only Nuvio", Targets.NUVIO,
                 Targets.choose("kodi", installed(nuvio)));
+        String wuplay = Targets.WUPLAY.packageName;
+        check("saved WuPlay, all three installed", Targets.WUPLAY,
+                Targets.choose("wuplay", installed(stremio, nuvio, wuplay)));
+        check("nothing saved, only WuPlay", Targets.WUPLAY,
+                Targets.choose(null, installed(wuplay)));
+        check("saved WuPlay, WuPlay removed", Targets.NUVIO,
+                Targets.choose("wuplay", installed(nuvio)));
         check("nothing installed", null,
                 Targets.choose("stremio", Collections.<String>emptySet()));
 
@@ -49,6 +56,11 @@ public class TargetsTest {
         boolean ok = "nuvio://series/tt7678620".equals(link);
         if (!ok) failures++;
         System.out.println((ok ? "PASS " : "FAIL ") + "Nuvio title link -> " + link);
+
+        link = Targets.titleLink(Targets.WUPLAY, "movie", "tt3521164");
+        ok = "wuplay://movie/tt3521164".equals(link);
+        if (!ok) failures++;
+        System.out.println((ok ? "PASS " : "FAIL ") + "WuPlay title link -> " + link);
 
         System.out.println(failures == 0 ? "All target cases pass." : failures + " target case(s) FAILED.");
         System.exit(failures == 0 ? 0 : 1);

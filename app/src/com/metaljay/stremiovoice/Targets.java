@@ -50,8 +50,12 @@ public final class Targets {
             "nuvio", "Nuvio", "com.nuvio.tv", Mode.PICK_LIST,
             "Pick from a row of posters, then Nuvio opens it", null);
 
+    public static final Target WUPLAY = new Target(
+            "wuplay", "WuPlay", "app.wuplay.androidtv", Mode.PICK_LIST,
+            "Pick from a row of posters, then WuPlay opens it", null);
+
     /** In order of preference when nothing has been chosen. */
-    public static final Target[] ALL = {STREMIO, NUVIO};
+    public static final Target[] ALL = {STREMIO, NUVIO, WUPLAY};
 
     private Targets() {}
 
@@ -79,6 +83,7 @@ public final class Targets {
     /** The link that opens one title, for PICK_LIST apps. Type is "movie" or "series". */
     public static String titleLink(Target target, String type, String imdbId) {
         if (target == NUVIO) return "nuvio://" + type + "/" + imdbId;
+        if (target == WUPLAY) return "wuplay://" + type + "/" + imdbId;
         throw new IllegalArgumentException(target.id + " has no title link");
     }
 }
