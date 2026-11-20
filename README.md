@@ -4,6 +4,8 @@ Hold the voice button on a rooted Fire TV Stick's remote, say a title (with or w
 
 *(Formerly "Stremio Voice". Existing installs update in place.)*
 
+<a href="https://buymeacoffee.com/metaljay"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="40"></a>
+
 ![The bar while the voice button is held](docs/listening.png)
 
 ![The bar after the button is released](docs/searching.png)
@@ -145,6 +147,12 @@ Please include the device, the full Fire OS version, the Magisk version, the mod
 | `test/` | plain-Java tests for `QueryCleaner`, `Targets`, `ResultRanker`, `Versions`, `UpdateSchedule`, `ReleaseNotes` and `PackageVerifier` |
 | `module/` | the Magisk module: `module.prop`, `post-fs-data.sh`, `service.sh`, the permission whitelist |
 | `docs/` | screenshots |
+
+## ☕ Support
+
+This is made and looked after in spare time. If it's useful to you, you can [buy me a coffee](https://buymeacoffee.com/metaljay). Thank you!
+
+<a href="https://buymeacoffee.com/metaljay"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="40"></a>
 
 ## Licence
 
