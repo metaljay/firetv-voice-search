@@ -5,8 +5,8 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.metaljay.stremiovoice"
-    android:versionCode="6"
-    android:versionName="2.2">
+    android:versionCode="7"
+    android:versionName="2.3">
 
     <uses-sdk
         android:minSdkVersion="28"
@@ -50,6 +50,19 @@
             android:exported="true"
             android:label="Voice Search"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
+
+        <!-- The Updates screen: opened from the settings screen or the update notification. -->
+        <activity
+            android:name=".UpdatesActivity"
+            android:exported="false"
+            android:label="Voice Search updates"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
+
+        <!-- The scheduled update check (about every six hours, only with a network). -->
+        <service
+            android:name=".UpdateJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!-- The pick-list, opened only by the service. -->
         <activity

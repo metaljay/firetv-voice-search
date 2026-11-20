@@ -83,6 +83,8 @@ public class VoiceService extends Service {
         bar = new ListeningBar(this);
         startInForeground();
         registerReceiver(keyReceiver, new IntentFilter(ACTION_KEY_INFO));
+        Updater.dir(this); // makes the folder the add-on's script shares with the app
+        UpdateJob.schedule(this); // the scheduled update check; does nothing if already scheduled
         Log.i(TAG, "service started");
     }
 

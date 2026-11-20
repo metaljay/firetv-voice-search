@@ -2,6 +2,7 @@ package com.metaljay.stremiovoice;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -38,6 +39,7 @@ public class ChooserActivity extends Activity {
 
     private LinearLayout rows;
     private TextView saved;
+    private TextView updateNote;
     private View done;
 
     // ----- helpers shared with the service -----
@@ -104,6 +106,7 @@ public class ChooserActivity extends Activity {
 
         done = doneButton();
         bottom.addView(done);
+        bottom.addView(updatesButton());
 
         LinearLayout notes = new LinearLayout(this);
         notes.setOrientation(LinearLayout.VERTICAL);
@@ -115,6 +118,11 @@ public class ChooserActivity extends Activity {
         saved = text("", 20, ACCENT);
         saved.setTypeface(Typeface.DEFAULT_BOLD);
         notes.addView(saved);
+
+        // Update news: "Update available", "isn't finished until you restart", or a went-back notice.
+        updateNote = text("", 18, ACCENT);
+        updateNote.setPadding(0, dp(4), 0, 0);
+        notes.addView(updateNote);
 
         TextView hint = text("To come back here, hold the voice button and say \"Voice settings\".", 15, GREY);
         hint.setPadding(0, dp(4), 0, 0);
@@ -132,6 +140,10 @@ public class ChooserActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refresh(null);
+        String notice = Updater.takeNotice(this);
+        String line = notice != null ? notice : Updater.settingsLine(this);
+        updateNote.setText(line == null ? "" : line);
+        updateNote.setVisibility(line == null ? View.GONE : View.VISIBLE);
     }
 
     /** Rebuilds the rows. Focus goes to the row for focusId, else the current choice. */
@@ -206,7 +218,28 @@ public class ChooserActivity extends Activity {
 
     /** "Done": closes the screen, back to where it was opened from (Home, from the tile). */
     private View doneButton() {
-        TextView b = text("Done", 22, Color.WHITE);
+        return actionButton("Done", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+            }
+        });
+    }
+
+    /** "Updates": opens the Updates screen. */
+    private View updatesButton() {
+        View b = actionButton("Updates", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(ChooserActivity.this, UpdatesActivity.class));
+            }
+        });
+        ((LinearLayout.LayoutParams) b.getLayoutParams()).leftMargin = dp(16);
+        return b;
+    }
+
+    private View actionButton(String label, View.OnClickListener onClick) {
+        TextView b = text(label, 22, Color.WHITE);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(48), dp(14), dp(48), dp(14));
         final GradientDrawable bg = new GradientDrawable();
@@ -225,12 +258,7 @@ public class ChooserActivity extends Activity {
                 ((TextView) v).setTextColor(hasFocus ? BACKGROUND : Color.WHITE);
             }
         });
-        b.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finish();
-            }
-        });
+        b.setOnClickListener(onClick);
         return b;
     }
 
