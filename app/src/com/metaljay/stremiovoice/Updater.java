@@ -10,6 +10,8 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Icon;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -63,6 +65,7 @@ final class Updater {
 
     private static final String CHANNEL_ID = "voice_search_updates";
     private static final int NOTIFICATION_ID = 2;
+    private static final long BANNER_MS = 12000;
 
     private Updater() {}
 
@@ -169,6 +172,7 @@ final class Updater {
         try {
             Release r = check(c);
             if (r != null && !isSkipped(c, r.version) && !r.version.equals(prefs(c).getString(KEY_NOTIFIED, null))) {
+                showBanner(c, r);
                 notifyAvailable(c, r);
                 prefs(c).edit().putString(KEY_NOTIFIED, r.version).apply();
             }
@@ -262,6 +266,11 @@ final class Updater {
                 out.write(buf, 0, n);
                 if (progress != null) progress.onBytes(done, total);
             }
+        } catch (UpdateException e) {
+            throw e;
+        } catch (IOException e) {
+            if (isOffline(e)) throw e;
+            throw new UpdateException("the download was interrupted");
         } finally {
             if (conn instanceof HttpURLConnection) ((HttpURLConnection) conn).disconnect();
         }
@@ -403,6 +412,9 @@ final class Updater {
         }
         if (n.equals(prefs(c).getString(KEY_NOTICE_SHOWN, null))) return null;
         prefs(c).edit().putString(KEY_NOTICE_SHOWN, n).apply();
+        // The version that failed to start isn't offered again at once (the same as after Go back).
+        String failed = s.get("notice_version");
+        if (failed != null && !failed.isEmpty()) skip(c, failed);
         try {
             request(c, "ack");
         } catch (IOException e) {
@@ -425,6 +437,32 @@ final class Updater {
 
     // ----- telling the user -----
 
+    /**
+     * Fire OS only files app notifications in its Notification Center, a page nobody opens
+     * unprompted, and shows no pop-up (tested on the stick). So the news also goes up as a
+     * short banner along the bottom of the screen, the same bar as "Listening". It can't be
+     * tapped, so it says where to go.
+     */
+    static void showBanner(final Context c, Release r) {
+        final String text = (ReleaseNotes.isUrgent(r.notes) ? "Urgent fix: Voice Search " : "Voice Search ")
+                + r.version + " is ready. Open the Voice Search tile, then Updates.";
+        final Handler main = new Handler(Looper.getMainLooper());
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                final ListeningBar bar = new ListeningBar(c);
+                bar.showMessage(text);
+                main.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        bar.hide();
+                    }
+                }, BANNER_MS);
+            }
+        });
+    }
+
+    /** A lasting card in Fire OS's Notification Center; selecting it opens the Updates screen. */
     static void notifyAvailable(Context c, Release r) {
         NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
         nm.createNotificationChannel(new NotificationChannel(

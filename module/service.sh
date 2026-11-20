@@ -44,6 +44,13 @@ prop() { grep "^$2=" "$1" 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '\r'; }
 RUN_VER=$(prop "$MODDIR/module.prop" version)
 RUN_CODE=$(prop "$MODDIR/module.prop" versionCode)
 
+# A kept copy that isn't older than the running version (for example after a zip was
+# installed by hand) isn't a "previous version": drop it, so Go back never shows it.
+if [ -f "$BACKUP/module.prop" ]; then
+    b_code=$(prop "$BACKUP/module.prop" versionCode)
+    if [ "${b_code:-0}" -ge "${RUN_CODE:-0}" ] 2>/dev/null; then rm -rf "$BACKUP"; fi
+fi
+
 MAGISK=""
 for m in "$(command -v magisk 2>/dev/null)" /data/adb/magisk/magisk /data/adb/magisk/magisk32 /data/adb/magisk/magisk64; do
     if [ -n "$m" ] && [ -x "$m" ]; then MAGISK=$m; break; fi
@@ -59,7 +66,8 @@ own() {
     chmod 600 "$1"
 }
 
-# Tells the app where things stand. Only called when the app's folder exists.
+# Tells the app where things stand, if that has changed. Called every round, so the
+# status is also fresh after a restart (it would otherwise still describe the old version).
 write_status() {
     [ -d "$UPD" ] || return 0
     tmp="$UPD/status.tmp"
@@ -67,11 +75,16 @@ write_status() {
         echo "running=$RUN_VER"
         [ -f "$STAGED/module.prop" ] && echo "staged=$(prop "$STAGED/module.prop" version)"
         [ -f "$BACKUP/module.prop" ] && echo "prev=$(prop "$BACKUP/module.prop" version)"
-        [ -f "$NOTICE" ] && echo "notice=$(head -n 1 "$NOTICE")"
+        # The notice file holds the message, then the version that failed (the app skips it).
+        [ -f "$NOTICE" ] && echo "notice=$(sed -n 1p "$NOTICE")" && echo "notice_version=$(sed -n 2p "$NOTICE")"
         echo "last_token=$LAST_TOKEN"
         echo "result=$LAST_RESULT"
         echo "error=$LAST_ERROR"
     } > "$tmp"
+    if cmp -s "$tmp" "$UPD/status"; then
+        rm -f "$tmp"
+        return 0
+    fi
     own "$tmp"
     mv -f "$tmp" "$UPD/status"
 }
@@ -168,6 +181,7 @@ do_install() {
         echo "prev_ver=$RUN_VER"
         echo "prev_code=$RUN_CODE"
     } > "$TRIAL"
+    chmod 600 "$TRIAL"
     rm -f "$zip" "$NOTICE"
     say "update $new_ver staged, restart to finish"
     return 0
@@ -243,11 +257,14 @@ do_revert() {
     t_prev=$(prop "$TRIAL" prev_ver)
     rm -f "$TRIAL"
     if [ -f "$BACKUP/module.prop" ] && stage_backup; then
-        echo "Went back to $t_prev because $t_new didn't start." > "$NOTICE"
+        printf '%s\n%s\n' "Went back to $t_prev because $t_new didn’t start." "$t_new" > "$NOTICE"
+        chmod 600 "$NOTICE"
         rm -rf "$BACKUP"
         say "$t_new didn't start; $t_prev is staged, waiting for a restart"
-        cmd notification post -S bigtext -t "Voice Search" voice-search-revert \
-            "Voice Search $t_new didn't start. Restart to go back to $t_prev." >/dev/null 2>&1
+        # Posted as the "shell" user: Android drops notifications posted by root.
+        SU=$(command -v su 2>/dev/null)
+        [ -z "$SU" ] && SU=/product/bin/su
+        "$SU" 2000 -c "cmd notification post -S bigtext -t 'Voice Search' voice-search-revert 'Voice Search $t_new didn’t start. Restart to go back to $t_prev.'" >/dev/null 2>&1
     else
         say "$t_new didn't start and there is no earlier version to go back to"
     fi
@@ -260,7 +277,7 @@ if [ -f "$TRIAL" ]; then
     t_code=$(prop "$TRIAL" new_code)
     if [ "$t_code" = "$RUN_CODE" ]; then
         TRIAL_ON=1
-    elif [ "${t_code:-0}" -gt "${RUN_CODE:-0}" ] 2>/dev/null; then
+    elif [ "${t_code:-0}" -gt "${RUN_CODE:-0}" ] 2>/dev/null && [ -d "$STAGED" ]; then
         :   # the update is staged but the stick hasn't restarted yet
     else
         rm -f "$TRIAL"  # left over from something else
@@ -327,7 +344,7 @@ dead=0        # checks that found it not running (trial only)
 ticks=0       # checks since the trial began
 while true; do
     handle_request
-    [ -d "$UPD" ] && [ ! -f "$UPD/status" ] && write_status
+    write_status
 
     if pidof "$PKG" >/dev/null 2>&1; then
         setprop debug.alm.enable true
