@@ -77,7 +77,7 @@ Open the settings screen (the **Voice Search** tile, or say "Voice settings") an
 How it stays safe:
 
 - The release zip is signed (as a jar) with the same key that signs the app. The app refuses a download unless every file in it is signed, nothing has been changed, nothing is missing or added, and the signer is exactly its own key. A failed or interrupted download installs nothing and leaves the working version alone.
-- The app has no root and gets no new permission. It hands the checked zip to the add-on's `service.sh`, which runs as root: it checks the zip's SHA-256 again, keeps a copy of the current version, installs with `magisk --install-module` (which only stages it for the next restart) and, when you tap Restart now, restarts. Installing by hand through Magisk still works alongside.
+- The app has no root and gets no new permission. It hands the checked zip to the add-on's `service.sh`, which runs as root: it checks the zip's SHA-256 again, keeps a copy of the current version, unpacks it with Magisk's own tools into a temporary folder, checks it there, and moves it into place in one step for Magisk to apply at the next restart (so a failed install never leaves a half-installed module), and, when you tap Restart now, restarts. Installing by hand through Magisk still works alongside.
 
 Maintainers: the first paragraph of a release's notes is the summary the TV shows (about 300 characters), so write it for the person holding the remote. Attach `stremio_voice.zip` exactly as `build.sh` produces it; it is already signed.
 
