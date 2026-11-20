@@ -31,8 +31,9 @@ UPD=/data/data/$PKG/files/update        # the app's folder for requests and down
 BACKUP=/data/adb/stremio_voice_prev     # the previous version, kept for "Go back"
 TRIAL=/data/adb/stremio_voice_trial     # present while a new version is on trial
 NOTICE=/data/adb/stremio_voice_notice   # one-time "went back" message for the app
-STAGED=/data/adb/modules_update/$MODID  # where Magisk waits to apply a module at the next boot
+STAGED=/data/adb/modules_update/$MODID  # where Magisk looks, at the next boot, for a module to apply
 LOG=/data/adb/stremio_voice_update.log
+STAGE_TMP=/data/adb/stremio_voice_stage # where a version is unpacked and checked before it is put in place
 
 LAST_TOKEN=""
 LAST_RESULT=""
@@ -51,10 +52,11 @@ if [ -f "$BACKUP/module.prop" ]; then
     if [ "${b_code:-0}" -ge "${RUN_CODE:-0}" ] 2>/dev/null; then rm -rf "$BACKUP"; fi
 fi
 
-MAGISK=""
-for m in "$(command -v magisk 2>/dev/null)" /data/adb/magisk/magisk /data/adb/magisk/magisk32 /data/adb/magisk/magisk64; do
-    if [ -n "$m" ] && [ -x "$m" ]; then MAGISK=$m; break; fi
-done
+# Magisk's own busybox: the unzip that Magisk itself unpacks modules with.
+BB=/data/adb/magisk/busybox
+
+# Left over from a crash part-way through staging: nothing there is ever used.
+rm -rf "$STAGE_TMP" "$BACKUP.tmp"
 
 fail() { LAST_ERROR="$1"; say "update: $1"; return 1; }
 
@@ -98,16 +100,25 @@ fix_perms() {
     chcon -R u:object_r:system_file:s0 "$1" 2>/dev/null
 }
 
-# Puts a copy of the kept previous version where Magisk applies it at the next boot.
-stage_backup() {
+# Makes the folder in $STAGE_TMP the module Magisk applies at the next boot. It was unpacked
+# or copied elsewhere first and is moved in with ONE rename, so Magisk never sees a half-written
+# copy, and nothing is written into the running module (not even its module.prop).
+publish_stage() {
+    fix_perms "$STAGE_TMP"
+    mkdir -p "$(dirname "$STAGED")" || return 1
     rm -rf "$STAGED"
-    mkdir -p "$(dirname "$STAGED")"
-    if ! cp -a "$BACKUP" "$STAGED"; then
-        rm -rf "$STAGED"
+    mv "$STAGE_TMP" "$STAGED" || return 1
+    touch "$MODDIR/update"
+    return 0
+}
+
+# Stages the kept previous version.
+stage_backup() {
+    rm -rf "$STAGE_TMP"
+    if ! cp -a "$BACKUP" "$STAGE_TMP" || ! publish_stage; then
+        rm -rf "$STAGE_TMP"
         return 1
     fi
-    fix_perms "$STAGED"
-    touch "$MODDIR/update"
     return 0
 }
 
@@ -126,7 +137,8 @@ do_install() {
         fail "the download changed on the way"
         return 1
     fi
-    props=$(unzip -p "$zip" module.prop 2>/dev/null | tr -d '\r')
+    [ -x "$BB" ] || { fail "Magisk's tools weren't found"; return 1; }
+    props=$("$BB" unzip -p "$zip" module.prop 2>/dev/null | tr -d '\r')
     new_id=$(echo "$props" | grep '^id=' | head -n 1 | cut -d= -f2-)
     new_ver=$(echo "$props" | grep '^version=' | head -n 1 | cut -d= -f2-)
     new_code=$(echo "$props" | grep '^versionCode=' | head -n 1 | cut -d= -f2-)
@@ -153,23 +165,20 @@ do_install() {
     rm -f "$BACKUP.tmp/apk.sha256" "$BACKUP.tmp/tile.sha256" "$BACKUP.tmp/update" \
         "$BACKUP.tmp/remove" "$BACKUP.tmp/disable"
 
-    # Stage the new version for the next boot. Nothing running is touched.
-    rm -rf "$STAGED"
-    installed=0
-    if [ -n "$MAGISK" ] && "$MAGISK" --help 2>&1 | grep -q -- '--install-module'; then
-        "$MAGISK" --install-module "$zip" > "$LOG" 2>&1 && installed=1
-    elif [ -x /data/adb/magisk/busybox ]; then
-        # Older Magisk without --install-module: unpack the zip ourselves (never META-INF).
-        mkdir -p "$STAGED" && /data/adb/magisk/busybox unzip -o "$zip" -x 'META-INF/*' -d "$STAGED" > "$LOG" 2>&1 \
-            && fix_perms "$STAGED" && touch "$MODDIR/update" && installed=1
-    fi
-    if [ "$installed" != 1 ] \
-        || [ ! -f "$STAGED/module.prop" ] \
-        || [ ! -f "$STAGED/system/priv-app/StremioVoice/StremioVoice.apk" ] \
-        || [ "$(prop "$STAGED/module.prop" versionCode)" != "$new_code" ]; then
-        rm -rf "$STAGED" "$BACKUP.tmp"
-        rm -f "$MODDIR/update"
-        fail "Magisk couldn't install it"
+    # Unpack into a temporary folder and check it there. Never META-INF (the signature files);
+    # the module has no customize.sh, so nothing else Magisk's installer does is needed.
+    # A version that was already staged, and the running module, are not touched until the
+    # new one is complete and moved into place in one step.
+    rm -rf "$STAGE_TMP"
+    mkdir -p "$STAGE_TMP"
+    if ! "$BB" unzip -o "$zip" -x 'META-INF/*' -d "$STAGE_TMP" > "$LOG" 2>&1 \
+        || [ ! -f "$STAGE_TMP/module.prop" ] \
+        || [ ! -f "$STAGE_TMP/system/priv-app/StremioVoice/StremioVoice.apk" ] \
+        || [ "$(prop "$STAGE_TMP/module.prop" id)" != "$MODID" ] \
+        || [ "$(prop "$STAGE_TMP/module.prop" versionCode)" != "$new_code" ] \
+        || ! publish_stage; then
+        rm -rf "$STAGE_TMP" "$BACKUP.tmp"
+        fail "the update couldn't be unpacked"
         return 1
     fi
 
@@ -183,6 +192,7 @@ do_install() {
     } > "$TRIAL"
     chmod 600 "$TRIAL"
     rm -f "$zip" "$NOTICE"
+    TRIAL_ON=0   # an update installed during a trial must not be undone by that trial's revert
     say "update $new_ver staged, restart to finish"
     return 0
 }
@@ -199,6 +209,7 @@ do_goback() {
     fi
     rm -f "$TRIAL" "$NOTICE"
     rm -rf "$BACKUP"
+    TRIAL_ON=0   # likewise: going back during a trial must not be undone by a revert
     say "going back to $(prop "$STAGED/module.prop" version), restart to finish"
     return 0
 }

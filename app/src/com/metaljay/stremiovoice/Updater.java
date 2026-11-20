@@ -332,7 +332,12 @@ final class Updater {
         return d;
     }
 
-    /** Testing only: a file only root can write, holding an address to use instead of GitHub's. */
+    /**
+     * Testing only: a file holding an address to use instead of GitHub's. Root writes it for tests,
+     * but the app (and any code running as it) can write it too, so it is not a secret. It protects
+     * nothing by itself: a download from any address must still pass {@link PackageVerifier}, and
+     * plain http:// and file:// addresses are accepted only while this file exists.
+     */
     private static File testFile(Context c) {
         return new File(dir(c), "test_url");
     }

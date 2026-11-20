@@ -327,19 +327,24 @@ public class UpdatesActivity extends Activity {
         new Thread(new Runnable() {
             @Override
             public void run() {
+                String problem;
                 try {
-                    Updater.request(UpdatesActivity.this, "restart");
+                    String token = Updater.request(UpdatesActivity.this, "restart");
+                    // The add-on answers first, then restarts; no answer in 30 seconds means it isn't there.
+                    problem = Updater.waitForResult(UpdatesActivity.this, token, 30000);
                 } catch (IOException e) {
-                    final String why = e.getMessage();
-                    ui.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            busy = false;
-                            say("Couldn't restart: " + why, ORANGE);
-                            refresh("restart");
-                        }
-                    });
+                    problem = e.getMessage();
                 }
+                if (problem == null) return; // answered "ok": the stick is restarting
+                final String why = problem;
+                ui.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        busy = false;
+                        say("Couldn't restart: " + why, ORANGE);
+                        refresh("restart");
+                    }
+                });
             }
         }, "update-restart").start();
     }

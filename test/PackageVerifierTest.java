@@ -100,6 +100,46 @@ public class PackageVerifierTest {
         File climb = sign(plainZip("climb", climbing), goodKs, "good", "SIGNER");
         expectRefused("a signed zip with a path that climbs out", PackageVerifier.verify(climb, goodCert));
 
+        // 12. Review findings (rule 4). An unsigned file hidden under META-INF/ must not get past the
+        //     check: the installer drops META-INF/ by pattern, but resolves "/../" first, so
+        //     "META-INF/../service.sh" would land as service.sh.
+        File dotdot1 = rewriteKeepingSignature(good, "dotdot1", files, "META-INF/../service.sh");
+        expectRefused("an unsigned META-INF/../service.sh", PackageVerifier.verify(dotdot1, goodCert));
+        File dotdot2 = rewriteKeepingSignature(good, "dotdot2", files, "META-INF/x/../../customize.sh");
+        expectRefused("an unsigned META-INF/x/../../customize.sh", PackageVerifier.verify(dotdot2, goodCert));
+        File extraMeta = rewriteKeepingSignature(good, "extrameta", files, "META-INF/evil.sh");
+        expectRefused("an unsigned extra file in META-INF", PackageVerifier.verify(extraMeta, goodCert));
+        File nestedMeta = rewriteKeepingSignature(good, "nestedmeta", files, "META-INF/sub/x.SF");
+        expectRefused("a signature-looking file in a META-INF sub-folder", PackageVerifier.verify(nestedMeta, goodCert));
+        File lowerMeta = rewriteKeepingSignature(good, "lowermeta", files, "meta-inf/service.sh");
+        expectRefused("a file in a differently-cased meta-inf folder", PackageVerifier.verify(lowerMeta, goodCert));
+
+        // 13. Signed correctly, but a path has an empty segment or starts with a slash: fails.
+        Map<String, byte[]> doubleSlash = new LinkedHashMap<>(files);
+        doubleSlash.put("system//extra.txt", "x".getBytes(StandardCharsets.UTF_8));
+        File dbl = sign(plainZip("doubleslash", doubleSlash), goodKs, "good", "SIGNER");
+        expectRefused("a signed zip with an empty path segment", PackageVerifier.verify(dbl, goodCert));
+        Map<String, byte[]> absolute = new LinkedHashMap<>(files);
+        absolute.put("/abs.txt", "x".getBytes(StandardCharsets.UTF_8));
+        File abs = sign(plainZip("absolute", absolute), goodKs, "good", "SIGNER");
+        expectRefused("a signed zip with a path that starts with a slash", PackageVerifier.verify(abs, goodCert));
+
+        // 14. A name that differs between the central directory (what Java reads) and the local
+        //     header (what the installer's unzip reads): "META-INF/a" in one, "service.sh" in the other.
+        File mismatch = patchFirstName(rewriteKeepingSignature(good, "mismatch-src", files, "META-INF/a"),
+                "mismatch", "META-INF/a", "service.sh");
+        expectRefused("a local header name that differs from the central directory",
+                PackageVerifier.verify(mismatch, goodCert));
+
+        File mismatch2 = patchFirstName(rewriteKeepingSignature(good, "mismatch2-src", files, "META-INF/a"),
+                "mismatch2", "META-INF/a", "evil_x.txt");
+        PackageVerifier.Result mm = PackageVerifier.verify(mismatch2, goodCert);
+        expectRefused("a local header name (not used elsewhere) that differs from the central directory", mm);
+        expect("... and it is the comparison that catches it", mm.reason.contains("isn't the same in both places"), true);
+
+        // 15. The good zip still passes after all of that (the checks are not too strict).
+        expect("good zip is still accepted", PackageVerifier.verify(good, goodCert).ok, true);
+
         System.out.println(failures == 0 ? "All verifier cases pass." : failures + " verifier case(s) FAILED.");
         System.exit(failures == 0 ? 0 : 1);
     }
@@ -183,6 +223,25 @@ public class PackageVerifierTest {
             }
         }
         return f;
+    }
+
+    /** Copies a zip, replacing the FIRST occurrence of one name's bytes (the local header) with an equal-length name. */
+    private static File patchFirstName(File zip, String name, String from, String to) throws IOException {
+        byte[] data = Files.readAllBytes(zip.toPath());
+        byte[] a = from.getBytes(StandardCharsets.UTF_8);
+        byte[] b = to.getBytes(StandardCharsets.UTF_8);
+        if (a.length != b.length) throw new IOException("names must have the same length");
+        for (int i = 0; i + a.length <= data.length; i++) {
+            boolean hit = true;
+            for (int j = 0; j < a.length && hit; j++) hit = data[i + j] == a[j];
+            if (hit) {
+                System.arraycopy(b, 0, data, i, b.length);
+                File out = new File(DIR, name + ".zip");
+                Files.write(out.toPath(), data);
+                return out;
+            }
+        }
+        throw new IOException("name not found: " + from);
     }
 
     private static byte[] readAll(InputStream in) throws IOException {
