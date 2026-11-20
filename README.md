@@ -40,6 +40,7 @@ Nothing else has been tested. Reports from other devices and Fire OS versions ar
 - **It relies on undocumented Fire OS behaviour.** A system update can break it.
 - **Any app on the stick can start a listening session,** because the button broadcast it listens for is not protected. The words it hears are written to the system log.
 - **With Nuvio or WuPlay, the spoken words are sent to Cinemeta** (`v3-cinemeta.strem.io`, the free catalogue Stremio and Nuvio themselves use) to find matching titles.
+- **It checks GitHub for updates** (`api.github.com`, nothing else, nothing sent about you). Switch that off any time with **Off** on the Updates screen. See [Updates](#updates).
 
 ## Install
 
@@ -58,6 +59,26 @@ $ADB reboot
 
 Give it about a minute after the restart, then hold the voice button.
 
+## Updates
+
+From version 2.3 Voice Search can update itself. **Install 2.3 by hand once, as above; after that, updates come from inside the app.** (If you are on 2.2 or older, install 2.3 by hand one last time.)
+
+Open the settings screen (the **Voice Search** tile, or say "Voice settings") and choose **Updates**:
+
+- **How often it checks:** Daily, Weekly (the default), Monthly or Off. **Check now** always works. With no connection, scheduled checks stay quiet and try again later; Check now says it couldn't check.
+- **How you hear about one:** Fire OS shows no pop-up for an app's notification (they only collect in its Notification Center), so a short banner appears along the bottom of the screen ("Voice Search 2.3.1 is ready…"), a card is added to the Notification Center, and the settings screen shows "Update available". Nothing is installed until you choose.
+- **The offer:** a plain summary of what changed, then **Install**, **Not now** or **Skip this version** (a skipped version is never announced again, though Check now still shows it). A release whose notes start with "Urgent:" is called an urgent fix. Only full GitHub releases are offered, never pre-releases.
+- **After installing:** choose **Restart now** or **Later**. The update isn't finished until the stick restarts, and the screens say so.
+- **Go back:** the previous version is kept on the stick. **Go back to version X** restores it in one tap, offline, one step back, then asks for a restart. Your settings (which app to search in, how often to check) are kept both ways.
+- **If a new version doesn't start,** the previous one is put back automatically and a notification says so. The stick never restarts by itself; restart when it suits you.
+
+How it stays safe:
+
+- The release zip is signed (as a jar) with the same key that signs the app. The app refuses a download unless every file in it is signed, nothing has been changed, nothing is missing or added, and the signer is exactly its own key. A failed or interrupted download installs nothing and leaves the working version alone.
+- The app has no root and gets no new permission. It hands the checked zip to the add-on's `service.sh`, which runs as root: it checks the zip's SHA-256 again, keeps a copy of the current version, installs with `magisk --install-module` (which only stages it for the next restart) and, when you tap Restart now, restarts. Installing by hand through Magisk still works alongside.
+
+Maintainers: the first paragraph of a release's notes is the summary the TV shows (about 300 characters), so write it for the person holding the remote. Attach `stremio_voice.zip` exactly as `build.sh` produces it; it is already signed.
+
 ## Remove
 
 - **Switch off:** create the file `/data/adb/modules/stremio_voice/disable` as root, then restart. Alexa has the button again and the app is gone. The Voice Search tile stays and only shows a message that the add-on is off.
@@ -73,6 +94,8 @@ Give it about a minute after the restart, then hold the voice button.
 5. Amazon's home screen hides system apps, so the settings screen can't have a tile of its own. The module carries a second, ordinary app (`com.metaljay.voicesearchtile`, in `tile/`) whose only job is to show a **Voice Search** tile and open the settings screen. The system app has no home-screen entry of its own, so home screens that do show system apps list Voice Search once. `service.sh` installs the tile app at boot when it is missing or has changed.
 6. Early in each boot, `post-fs-data.sh` clears Android's cached details for this app when the app file has changed. Without it, an updated module kept the old version's details: Android trusts its cache while the cache is newer than the app's folder, and through Magisk that folder shows the boot-time clock, which on Fire TV reads 1 Jan 2022.
 
+7. Updates (`UpdatesActivity`, `Updater`, `UpdateJob`): a scheduled job asks GitHub for the latest release about every six hours, and `UpdateSchedule` decides whether a check is due. `PackageVerifier` proves a download genuine before the app asks `service.sh` to install it; the two talk through a `request` and a `status` file in the app's private folder. After an update `service.sh` watches the new version's first two minutes and puts the old one back if the app never runs.
+
 There are no hooks, no Zygisk, and no patched or replaced Amazon files. Recognition uses whichever language Alexa is set to on the stick.
 
 ## Build
@@ -80,11 +103,11 @@ There are no hooks, no Zygisk, and no patched or replaced Amazon files. Recognit
 The build script was written on macOS and downloads nothing. It needs a JDK (25 by default; set `JAVA_HOME` to use another), Android build-tools 36.0.0 and `platforms/android-34` (set `ANDROID_HOME` if the SDK is not in `~/Library/Android/sdk`).
 
 ```bash
-./build.sh test   # unit tests: word tidying, choosing the app, ordering results
-./build.sh        # tests, then build/StremioVoice.apk, build/VoiceSearchTile.apk and build/stremio_voice.zip
+./build.sh test   # unit tests: word tidying, choosing the app, ordering results, versions, update schedule, release notes, update-zip checks
+./build.sh        # tests, then build/StremioVoice.apk, build/VoiceSearchTile.apk and build/stremio_voice.zip (signed)
 ```
 
-The first build creates `debug.keystore` (git-ignored). Keep it: updates installed with `adb install -r` must be signed with the same key.
+The first build creates `debug.keystore` (git-ignored). Keep it: updates installed with `adb install -r` must be signed with the same key, and the self-updater only accepts a zip signed with it. If you build your own copy, your key signs your zips, so installs of your build update from your build only; set the repository address in `Updater.java` to your own GitHub project.
 
 For quick changes to the app alone, with no restart once the module is in:
 
@@ -119,7 +142,7 @@ Please include the device, the full Fire OS version, the Magisk version, the mod
 | `build.sh` | test and build script |
 | `app/` | the Android app (plain Java, no libraries) |
 | `tile/` | the small tile app that opens the settings screen |
-| `test/` | plain-Java tests for `QueryCleaner`, `Targets` and `ResultRanker` |
+| `test/` | plain-Java tests for `QueryCleaner`, `Targets`, `ResultRanker`, `Versions`, `UpdateSchedule`, `ReleaseNotes` and `PackageVerifier` |
 | `module/` | the Magisk module: `module.prop`, `post-fs-data.sh`, `service.sh`, the permission whitelist |
 | `docs/` | screenshots |
 
