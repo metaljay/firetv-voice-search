@@ -248,13 +248,22 @@ public class TiviMateHelper extends AccessibilityService {
             cards.add(new ResultChooser.Card(ResultChooser.rowFor(headers, r.top), cardTitle(n), r.top, r.left));
         }
         // TiviMate's "Nothing found" message is focusable too, but it is not a result.
+        AccessibilityNodeInfo nothingFound = null;
         for (int i = cards.size() - 1; i >= 0; i--) {
             if (cards.get(i).title.trim().equalsIgnoreCase("Nothing found")) {
+                nothingFound = nodes.get(i);
                 cards.remove(i);
                 nodes.remove(i);
             }
         }
         int pick = ResultChooser.choose(cards, words, wantChannel, Locale.getDefault().getCountry());
+        if (pick < 0 && nothingFound != null) {
+            // No results. The focus still has to leave the search box: left there, Amazon's
+            // on-screen keyboard pops up (seen on the stick), so it goes to the message.
+            nothingFound.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+            Log.i(TAG, "TiviMate helper: no results");
+            return true;
+        }
         if (pick < 0) return false;
         ResultChooser.Card c = cards.get(pick);
         boolean ok = nodes.get(pick).performAction(AccessibilityNodeInfo.ACTION_FOCUS);
