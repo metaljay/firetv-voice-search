@@ -60,6 +60,8 @@ public class VoiceService extends Service {
     private static final long BAR_LINGER_MS = 3000;
     /** TiviMate's main screen: its only screen another app may open. */
     private static final String TIVIMATE_MAIN = "ar.tvplayer.tv.ui.MainActivity";
+    /** Shown when nothing usable was heard. */
+    private static final String MSG_NOT_CAUGHT = "Didn't catch that. Try again";
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private ListeningBar bar;
@@ -204,7 +206,7 @@ public class VoiceService extends Service {
             Log.i(TAG, "startListening called");
         } catch (RuntimeException e) {
             Log.e(TAG, "could not start listening", e);
-            endSession(true);
+            endSession(true, "Voice service not available");
         }
     }
 
@@ -226,7 +228,7 @@ public class VoiceService extends Service {
             public void run() {
                 if (session == mine && active) {
                     Log.w(TAG, "no result within " + RESULT_TIMEOUT_MS + " ms, giving up");
-                    endSession(true);
+                    endSession(true, "No answer from the voice service");
                 }
             }
         }, RESULT_TIMEOUT_MS);
@@ -234,6 +236,14 @@ public class VoiceService extends Service {
 
     /** Stop handling the current press. If cancel is true, also abandon the recogniser's work. */
     private void endSession(boolean cancel) {
+        endSession(cancel, null);
+    }
+
+    /**
+     * Stop handling the current press. With a message, the bar shows it for a moment before
+     * hiding, so a press that went nowhere is not silent; without one, the bar hides at once.
+     */
+    private void endSession(boolean cancel, String message) {
         active = false;
         released = false;
         main.removeCallbacksAndMessages(null);
@@ -244,7 +254,29 @@ public class VoiceService extends Service {
                 Log.w(TAG, "cancel failed", e);
             }
         }
-        bar.hide();
+        if (message == null) {
+            bar.hide();
+            return;
+        }
+        bar.showMessage(message);
+        final int mine = session;
+        main.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (session == mine && !active) bar.hide();
+            }
+        }, BAR_LINGER_MS);
+    }
+
+    /** What the bar says when the speech service reports an error. */
+    private static String errorMessage(int code) {
+        switch (code) {
+            case SpeechRecognizer.ERROR_NO_MATCH:
+            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+                return MSG_NOT_CAUGHT;
+            default:
+                return "Voice service error: " + errorName(code);
+        }
     }
 
     private void destroyRecognizer() {
@@ -261,7 +293,7 @@ public class VoiceService extends Service {
     private void handleResult(ArrayList<String> candidates) {
         if (candidates == null || candidates.isEmpty()) {
             Log.i(TAG, "result was empty");
-            endSession(false);
+            endSession(false, MSG_NOT_CAUGHT);
             return;
         }
         String heard = candidates.get(0);
@@ -271,7 +303,7 @@ public class VoiceService extends Service {
         boolean wantChannel = forTiviMate && QueryCleaner.endsWithChannel(heard);
         Log.i(TAG, "search words: \"" + words + "\"");
         if (words.isEmpty()) {
-            endSession(false);
+            endSession(false, MSG_NOT_CAUGHT);
             return;
         }
         final int mine = session;
@@ -380,7 +412,8 @@ public class VoiceService extends Service {
         public void onError(int error) {
             Log.w(TAG, "recogniser error " + error + " (" + errorName(error) + ")");
             // After an error the connection may be dead; start fresh next time.
-            endSession(false);
+            // Only a press still waiting gets a message: a late error from an old press stays quiet.
+            endSession(false, active ? errorMessage(error) : null);
             destroyRecognizer();
         }
 
