@@ -11,7 +11,10 @@ import java.util.Locale;
  * TiviMate lists results in rows under the headers "Channels", "Movies" and "Shows". Unless the
  * spoken words ended in "channel", films and series come first, then channels. Within the
  * preferred rows the card whose title best matches the words wins (exact, then starts with, then
- * contains); ties keep TiviMate's own order (top row first, then left to right).
+ * contains). Cards that match equally are ranked: a title that needed no country or quality
+ * prefix stripped ("Sky News") before one that did ("NO: Sky News"); then a prefix that is the
+ * stick's own country before other countries (a quality prefix like "4K:" is not a foreign
+ * country); then TiviMate's own order (top row first, then left to right).
  */
 public final class ResultChooser {
 
@@ -72,39 +75,82 @@ public final class ResultChooser {
      * on any card (TiviMate in another language), the top-left card.
      */
     public static int choose(List<Card> cards, String words, boolean wantChannel) {
+        return choose(cards, words, wantChannel, null);
+    }
+
+    /**
+     * As above; country is the stick's own country code (for example "GB"), or null/empty for
+     * no preference. "GB" also matches the prefixes "UK" and "EN".
+     */
+    public static int choose(List<Card> cards, String words, boolean wantChannel, String country) {
         if (cards == null || cards.isEmpty()) return -1;
         boolean anyRow = false;
         for (Card c : cards) {
             if (c.row != null) anyRow = true;
         }
-        if (!anyRow) return bestIn(cards, null, "", false);
+        if (!anyRow) return bestIn(cards, null, "", false, null);
 
         int pick;
         if (wantChannel) {
-            pick = bestIn(cards, new String[]{CHANNELS}, words, true);
-            if (pick < 0) pick = bestIn(cards, new String[]{MOVIES, SHOWS}, words, true);
+            pick = bestIn(cards, new String[]{CHANNELS}, words, true, country);
+            if (pick < 0) pick = bestIn(cards, new String[]{MOVIES, SHOWS}, words, true, country);
         } else {
-            pick = bestIn(cards, new String[]{MOVIES, SHOWS}, words, true);
-            if (pick < 0) pick = bestIn(cards, new String[]{CHANNELS}, words, true);
+            pick = bestIn(cards, new String[]{MOVIES, SHOWS}, words, true, country);
+            if (pick < 0) pick = bestIn(cards, new String[]{CHANNELS}, words, true, country);
         }
-        return pick >= 0 ? pick : bestIn(cards, null, "", false);
+        return pick >= 0 ? pick : bestIn(cards, null, "", false, null);
     }
 
     /** Best card among those in the given rows (any card if rows is null), or -1 if there are none. */
-    private static int bestIn(List<Card> cards, String[] rows, String words, boolean score) {
+    private static int bestIn(List<Card> cards, String[] rows, String words, boolean score, String country) {
         String w = normalise(words);
         int best = -1;
-        int bestScore = -1;
+        int bestScore = -1, bestPlain = -1, bestCountry = -1;
         for (int i = 0; i < cards.size(); i++) {
             Card c = cards.get(i);
             if (rows != null && !inRows(c.row, rows)) continue;
             int s = score ? score(normalise(c.title), w) : 0;
-            if (best < 0 || s > bestScore || (s == bestScore && before(c, cards.get(best)))) {
+            int plain = score && prefixOf(c.title) == null ? 1 : 0;
+            int ctry = score ? countryRank(prefixOf(c.title), country) : 0;
+            boolean better = best < 0
+                    || s > bestScore
+                    || (s == bestScore && plain > bestPlain)
+                    || (s == bestScore && plain == bestPlain && ctry > bestCountry)
+                    || (s == bestScore && plain == bestPlain && ctry == bestCountry
+                            && before(c, cards.get(best)));
+            if (better) {
                 best = i;
                 bestScore = s;
+                bestPlain = plain;
+                bestCountry = ctry;
             }
         }
         return best;
+    }
+
+    /** The leading country or quality code of a title ("UK" in "UK: Sky News"), lower case, or null. */
+    public static String prefixOf(String title) {
+        if (title == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("^([a-z0-9]{2,3})\\s*[:|]\\s+").matcher(title.toLowerCase(Locale.ROOT).trim());
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static boolean isQuality(String prefix) {
+        return prefix.equals("4k") || prefix.equals("hd") || prefix.equals("fhd")
+                || prefix.equals("uhd") || prefix.equals("sd");
+    }
+
+    /**
+     * 2 = the prefix is the stick's own country, 1 = neutral (no prefix, a quality prefix, or no
+     * country preference), 0 = another country's prefix.
+     */
+    static int countryRank(String prefix, String country) {
+        if (country == null || country.trim().isEmpty() || prefix == null || isQuality(prefix)) return 1;
+        String c = country.trim().toLowerCase(Locale.ROOT);
+        if (prefix.equals(c)) return 2;
+        if (c.equals("gb") && (prefix.equals("uk") || prefix.equals("en"))) return 2;
+        return 0;
     }
 
     private static boolean inRows(String row, String[] rows) {

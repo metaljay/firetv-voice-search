@@ -11,6 +11,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Types spoken words into TiviMate's own Search screen. An Android accessibility service
@@ -246,7 +247,14 @@ public class TiviMateHelper extends AccessibilityService {
             nodes.add(n);
             cards.add(new ResultChooser.Card(ResultChooser.rowFor(headers, r.top), cardTitle(n), r.top, r.left));
         }
-        int pick = ResultChooser.choose(cards, words, wantChannel);
+        // TiviMate's "Nothing found" message is focusable too, but it is not a result.
+        for (int i = cards.size() - 1; i >= 0; i--) {
+            if (cards.get(i).title.trim().equalsIgnoreCase("Nothing found")) {
+                cards.remove(i);
+                nodes.remove(i);
+            }
+        }
+        int pick = ResultChooser.choose(cards, words, wantChannel, Locale.getDefault().getCountry());
         if (pick < 0) return false;
         ResultChooser.Card c = cards.get(pick);
         boolean ok = nodes.get(pick).performAction(AccessibilityNodeInfo.ACTION_FOCUS);

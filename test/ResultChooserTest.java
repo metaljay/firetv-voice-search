@@ -25,6 +25,21 @@ public class ResultChooserTest {
                 + (ok ? "" : " (expected " + expectedTitle + ")"));
     }
 
+    private static void checkC(String label, List<Card> cards, String words, String country, String expectedTitle) {
+        int i = ResultChooser.choose(cards, words, false, country);
+        String actual = i < 0 ? null : cards.get(i).title;
+        boolean ok = expectedTitle.equals(actual);
+        if (!ok) failures++;
+        System.out.println((ok ? "PASS " : "FAIL ") + label + " -> " + actual
+                + (ok ? "" : " (expected " + expectedTitle + ")"));
+    }
+
+    private static List<Card> channels(String... titles) {
+        List<Card> out = new ArrayList<>();
+        for (int i = 0; i < titles.length; i++) out.add(card("Channels", titles[i], 300, 50 + i * 250));
+        return out;
+    }
+
     private static void checkEq(String label, Object expected, Object actual) {
         boolean ok = expected == null ? actual == null : expected.equals(actual);
         if (!ok) failures++;
@@ -110,6 +125,31 @@ public class ResultChooserTest {
         check("no row headers: words do not matter", Arrays.asList(
                 card(null, "Bluey", 880, 50),
                 card(null, "Other", 300, 50)), "bluey", false, "Other");
+
+        // Several country versions of the same channel: plain title, then the stick's country, then TiviMate's order.
+        checkC("country GB: plain \"Sky News\" wins", channels("AR: Sky News Arabia", "NO: Sky News",
+                "PT: Sky News", "Sky News", "UK: Sky News"), "sky news", "GB", "Sky News");
+        checkC("country GB, no plain: \"UK: Sky News\" wins", channels("AR: Sky News Arabia", "NO: Sky News",
+                "PT: Sky News", "UK: Sky News"), "sky news", "GB", "UK: Sky News");
+        checkC("country GB, only foreign: TiviMate's order", channels("AR: Sky News Arabia", "NO: Sky News",
+                "PT: Sky News"), "sky news", "GB", "NO: Sky News");
+        checkC("no country: plain still wins", channels("NO: Sky News", "Sky News", "UK: Sky News"),
+                "sky news", null, "Sky News");
+        checkC("no country, no plain: TiviMate's order", channels("NO: Sky News", "UK: Sky News"),
+                "sky news", "", "NO: Sky News");
+        checkC("country GB matches the prefix EN", channels("NO: Sky News", "EN: Sky News"), "sky news", "GB", "EN: Sky News");
+        checkC("country US matches only US", channels("UK: Sky News", "US: Sky News"), "sky news", "US", "US: Sky News");
+        checkC("quality prefix does not lose to a foreign country", channels("NO: Sky Sports F1", "4K: Sky Sports F1"),
+                "sky sports f1", "GB", "4K: Sky Sports F1");
+        checkC("quality prefix does not beat the stick's country", channels("4K: Sky Sports F1", "UK: Sky Sports F1"),
+                "sky sports f1", "GB", "UK: Sky Sports F1");
+        checkC("HD prefix counts as neutral", channels("PT: Sky News", "HD | Sky News"), "sky news", "GB", "HD | Sky News");
+        checkC("a better match still beats a better country", channels("UK: Sky News Extra", "NO: Sky News"),
+                "sky news", "GB", "NO: Sky News");
+        checkEq("prefix of \"UK: Sky News\"", "uk", ResultChooser.prefixOf("UK: Sky News"));
+        checkEq("prefix of \"4K | Sky\"", "4k", ResultChooser.prefixOf("4K | Sky"));
+        checkEq("prefix of \"Sky News\"", null, ResultChooser.prefixOf("Sky News"));
+        checkEq("prefix of \"Cartoon: Network\" (too long to be a code)", null, ResultChooser.prefixOf("Cartoon: Network"));
 
         // No cards.
         check("no cards", new ArrayList<Card>(), "bluey", false, null);
