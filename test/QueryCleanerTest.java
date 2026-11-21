@@ -59,6 +59,19 @@ public class QueryCleanerTest {
         check("Moana on woo play", "moana");
         check("on wuplay", "");
 
+        // TiviMate (2.4), including likely speech-to-text spellings.
+        check("Sky News on TiviMate", "sky news");
+        check("play Moana in tivimate please", "moana");
+        check("Sky News on tivi mate", "sky news");
+        check("BBC One on tv mate", "bbc one");
+        check("Bluey in tivo mate", "bluey");
+        check("on tivimate", "");
+        check("sky news channel", "sky news");
+        check("play Sky News channel on TiviMate", "sky news");
+        check("channel 4", "channel 4");
+        check("channel", "channel");
+        check("the history channel", "the history");
+
         // Spoken settings (2.0): checked on the cleaned words, as the service does.
         settings("Voice Search settings", true);
         settings("Alexa, open voice search settings please", true);

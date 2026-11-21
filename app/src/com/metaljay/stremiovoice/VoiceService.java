@@ -27,18 +27,28 @@ import java.util.ArrayList;
  * Foreground service. The system sends a broadcast when the remote's voice
  * button goes down and up (the diversion switch must be on). On button-down
  * we start Alexa's speech-to-text service, on button-up we stop it, and when
- * the words come back we open Stremio's search for them.
+ * the words come back we open the chosen app's search for them.
  *
  * Everything here runs on the main thread, as the speech recogniser requires.
  */
 public class VoiceService extends Service {
 
-    static final String TAG = "StremioVoice";
+    static final String TAG = "VoiceSearch";
+
+    /**
+     * Test entry: root sends this (extra "words") to run the same path as spoken words, without
+     * the remote. The service is not exported, so only root and the system can send it:
+     * su -c am start-foreground-service -n com.metaljay.stremiovoice/.VoiceService
+     *      -a com.metaljay.stremiovoice.SEARCH --es words "sky news"
+     */
+    static final String ACTION_SEARCH = "com.metaljay.stremiovoice.SEARCH";
+    static final String EXTRA_WORDS = "words";
 
     private static final String ACTION_KEY_INFO = "com.amazon.tv.alm.action.KEY_INFO";
     private static final String EXTRA_KEY_EVENT = "KeyEvent";
     private static final ComponentName SPEECH_SERVICE = new ComponentName(
             "com.amazon.vizzini", "com.amazon.vizzini.voiceservice.SpeechToTextService");
+    // Keeps its original id on purpose: renaming it would leave a stale channel on sticks that update.
     private static final String CHANNEL_ID = "stremio_voice";
     private static final int NOTIFICATION_ID = 1;
 
@@ -46,8 +56,10 @@ public class VoiceService extends Service {
     private static final long RESULT_TIMEOUT_MS = 5000;
     /** Safety net in case the button-up broadcast never arrives. */
     private static final long MAX_HOLD_MS = 20000;
-    /** How long the bar stays up after Stremio has been asked to open. */
+    /** How long the bar stays up after the chosen app has been asked to open. */
     private static final long BAR_LINGER_MS = 3000;
+    /** TiviMate's main screen: its only screen another app may open. */
+    private static final String TIVIMATE_MAIN = "ar.tvplayer.tv.ui.MainActivity";
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private ListeningBar bar;
@@ -90,6 +102,15 @@ public class VoiceService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_SEARCH.equals(intent.getAction())) {
+            String words = intent.getStringExtra(EXTRA_WORDS);
+            Log.i(TAG, "test search: \"" + words + "\"");
+            if (words != null) {
+                ArrayList<String> heard = new ArrayList<>();
+                heard.add(words);
+                handleResult(heard);
+            }
+        }
         return START_STICKY;
     }
 
@@ -273,7 +294,12 @@ public class VoiceService extends Service {
             return null;
         }
         Intent open;
-        if (target.mode == Targets.Mode.APP_SEARCH) {
+        if (target.mode == Targets.Mode.TYPE_IN_APP) {
+            // No link for this app: open its main screen; the TiviMate helper (an accessibility
+            // service limited to TiviMate) then takes the waiting words to its Search screen.
+            open = new Intent().setComponent(new ComponentName(target.packageName, TIVIMATE_MAIN));
+            PendingSearch.set(words, System.currentTimeMillis());
+        } else if (target.mode == Targets.Mode.APP_SEARCH) {
             Uri uri = Uri.parse(target.searchLink + Uri.encode(words));
             open = new Intent(Intent.ACTION_VIEW, uri).setPackage(target.packageName);
         } else {
@@ -285,6 +311,7 @@ public class VoiceService extends Service {
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             startActivity(open);
+            if (target.mode == Targets.Mode.TYPE_IN_APP) TiviMateHelper.kick();
             Log.i(TAG, "opened " + target.name + " for \"" + words + "\"");
         } catch (RuntimeException e) {
             Log.e(TAG, "could not open " + target.name, e);

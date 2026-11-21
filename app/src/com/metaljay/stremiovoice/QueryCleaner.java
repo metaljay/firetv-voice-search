@@ -19,6 +19,9 @@ public final class QueryCleaner {
         "on stremio", "in stremio", "on nuvio", "in nuvio",
         // WuPlay, and how speech-to-text may spell it.
         "on wuplay", "in wuplay", "on wu play", "in wu play", "on woo play", "in woo play",
+        // TiviMate, and how speech-to-text may spell it.
+        "on tivimate", "in tivimate", "on tivi mate", "in tivi mate",
+        "on tv mate", "in tv mate", "on tivo mate", "in tivo mate",
         "please",
     };
 
@@ -71,6 +74,13 @@ public final class QueryCleaner {
                     changed = true;
                     break;
                 }
+            }
+            if (changed) continue;
+            // "sky news channel" -> "sky news": TiviMate's search won't find the extra word.
+            // Only when other words come before it, so "channel 4" and "channel" are left alone.
+            if (s.endsWith(" channel")) {
+                s = tidy(s.substring(0, s.length() - " channel".length()));
+                changed = true;
             }
         }
         return s;

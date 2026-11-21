@@ -58,7 +58,6 @@ final class Updater {
 
     private static final String LATEST_URL =
             "https://api.github.com/repos/metaljay/firetv-voice-search/releases/latest";
-    private static final String ASSET_NAME = "stremio_voice.zip";
     private static final int TIMEOUT_MS = 15000;
     private static final int MAX_JSON_BYTES = 512 * 1024;
     private static final int MAX_ZIP_BYTES = 30 * 1024 * 1024;
@@ -194,15 +193,22 @@ final class Updater {
         if (o.optBoolean("draft") || o.optBoolean("prerelease")) return null; // never offered
         String version = Versions.clean(o.optString("tag_name", ""));
         if (version == null) return null;
-        String url = null;
+        // The zip is attached under its current name and the old one; the current name wins.
+        java.util.List<String> names = new java.util.ArrayList<>();
+        java.util.Map<String, String> urls = new java.util.HashMap<>();
         JSONArray assets = o.optJSONArray("assets");
         for (int i = 0; assets != null && i < assets.length(); i++) {
             JSONObject a = assets.optJSONObject(i);
-            if (a != null && ASSET_NAME.equals(a.optString("name"))) url = a.optString("browser_download_url", null);
+            if (a == null) continue;
+            String name = a.optString("name", "");
+            names.add(name);
+            urls.put(name, a.optString("browser_download_url", null));
         }
+        String picked = AssetPicker.pick(names);
+        String url = picked == null ? null : urls.get(picked);
         if (url == null) {
             if (!Versions.isNewer(version, installedVersion(c))) return null;
-            throw new UpdateException("the release has no " + ASSET_NAME);
+            throw new UpdateException("the release has no " + AssetPicker.NEW_NAME);
         }
         return new Release(version, o.optString("body", ""), url);
     }

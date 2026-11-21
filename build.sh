@@ -7,8 +7,10 @@
 # Outputs (in build/, which git ignores):
 #   build/StremioVoice.apk     the signed app
 #   build/VoiceSearchTile.apk  the small tile app that opens the settings screen
-#   build/stremio_voice.zip    the Magisk add-on (carries both), signed so the app's
+#   build/voice_search.zip    the Magisk add-on (carries both), signed so the app's
 #                              updater accepts it
+#   build/stremio_voice.zip   the same file under its old name. Attach BOTH to every
+#                              release: 2.3 and earlier only look for the old name.
 #
 # The signing key is debug.keystore in this folder. It is created the first
 # time and then kept, so `adb install -r` updates keep working. Do not delete it.
@@ -44,15 +46,19 @@ run_tests() {
         "$APP_SRC/com/metaljay/stremiovoice/UpdateSchedule.java" \
         "$APP_SRC/com/metaljay/stremiovoice/ReleaseNotes.java" \
         "$APP_SRC/com/metaljay/stremiovoice/PackageVerifier.java" \
+        "$APP_SRC/com/metaljay/stremiovoice/AssetPicker.java" \
         test/QueryCleanerTest.java test/TargetsTest.java test/ResultRankerTest.java \
         test/VersionsTest.java test/UpdateScheduleTest.java test/ReleaseNotesTest.java \
-        test/PackageVerifierTest.java test/VerifyZip.java
+        test/PackageVerifierTest.java test/AssetPickerTest.java test/VerifyZip.java
     "$JAVA" -cp build/test-classes QueryCleanerTest
     "$JAVA" -cp build/test-classes TargetsTest
     "$JAVA" -cp build/test-classes ResultRankerTest
     "$JAVA" -cp build/test-classes VersionsTest
     "$JAVA" -cp build/test-classes UpdateScheduleTest
     "$JAVA" -cp build/test-classes ReleaseNotesTest
+    "$JAVA" -cp build/test-classes AssetPickerTest
+    echo "== Accessibility-list tests (plain sh)"
+    sh test/a11y_list_test.sh
     # Makes throwaway keys and signed zips in build/verifier-test/; leaves debug.keystore alone.
     "$JAVA" -cp build/test-classes PackageVerifierTest
 }
@@ -117,24 +123,25 @@ build_tile() {
 
 build_module() {
     echo "== Add-on zip"
-    rm -rf build/module build/stremio_voice.zip
+    rm -rf build/module build/voice_search.zip build/stremio_voice.zip
     mkdir -p build/module/system/priv-app/StremioVoice
     cp -R module/. build/module/
     cp build/StremioVoice.apk build/module/system/priv-app/StremioVoice/StremioVoice.apk
     mkdir -p build/module/tile
     cp build/VoiceSearchTile.apk build/module/tile/VoiceSearchTile.apk
-    (cd build/module && zip -q -X -D -r ../stremio_voice.zip module.prop post-fs-data.sh service.sh system tile)
+    (cd build/module && zip -q -X -D -r ../voice_search.zip module.prop post-fs-data.sh service.sh a11y_list.sh uninstall.sh system tile)
     # Sign the zip as a jar with the key that signs the app. The app refuses an update
     # zip unless it carries this signature (see PackageVerifier). Magisk skips META-INF,
     # so the signature files do not end up in the installed module.
     "$JARSIGNER" -keystore "$KEYSTORE" -storepass "$KEY_PASS" -keypass "$KEY_PASS" \
-        -digestalg SHA-256 -sigalg SHA256withRSA build/stremio_voice.zip "$KEY_ALIAS" >/dev/null
-    "$JARSIGNER" -verify build/stremio_voice.zip >/dev/null \
+        -digestalg SHA-256 -sigalg SHA256withRSA build/voice_search.zip "$KEY_ALIAS" >/dev/null
+    "$JARSIGNER" -verify build/voice_search.zip >/dev/null \
         || { echo "jarsigner could not verify the zip" >&2; exit 1; }
     # The same check the app runs, against the same key.
-    "$JAVA" -cp build/test-classes VerifyZip build/stremio_voice.zip "$KEYSTORE" "$KEY_ALIAS" "$KEY_PASS"
-    unzip -l build/stremio_voice.zip
-    echo "Built build/stremio_voice.zip (signed)"
+    "$JAVA" -cp build/test-classes VerifyZip build/voice_search.zip "$KEYSTORE" "$KEY_ALIAS" "$KEY_PASS"
+    unzip -l build/voice_search.zip
+    cp build/voice_search.zip build/stremio_voice.zip
+    echo "Built build/voice_search.zip (signed), and build/stremio_voice.zip (the same file, old name)"
 }
 
 case "${1:-build}" in

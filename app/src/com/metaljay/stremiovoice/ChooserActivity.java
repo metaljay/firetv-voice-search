@@ -83,14 +83,14 @@ public class ChooserActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BACKGROUND);
-        root.setPadding(dp(96), dp(44), dp(96), dp(32));
+        root.setPadding(dp(96), dp(28), dp(96), dp(24));
 
         TextView title = text("Voice Search", 34, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(title);
 
         TextView intro = text("Hold the voice button and say a title. Results open in:", 18, GREY);
-        intro.setPadding(0, dp(8), 0, dp(20));
+        intro.setPadding(0, dp(4), 0, dp(12));
         root.addView(intro);
 
         rows = new LinearLayout(this);
@@ -162,7 +162,7 @@ public class ChooserActivity extends Activity {
         if (focus == null && rows.getChildCount() > 0) focus = rows.getChildAt(0);
         if (focus != null) focus.requestFocus();
 
-        saved.setText(current == null ? "Install Stremio, Nuvio or WuPlay to use voice search."
+        saved.setText(current == null ? "Install Stremio, Nuvio, WuPlay or TiviMate to use voice search."
                 : "The voice button searches in " + current.name + ".");
     }
 
@@ -170,10 +170,10 @@ public class ChooserActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(28), dp(14), dp(28), dp(14));
+        row.setPadding(dp(28), dp(8), dp(28), dp(8)); // tight enough that four rows and the buttons fit
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(12);
+        lp.bottomMargin = dp(8);
         row.setLayoutParams(lp);
 
         final GradientDrawable bg = new GradientDrawable();

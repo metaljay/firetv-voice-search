@@ -49,6 +49,20 @@ public class TargetsTest {
                 Targets.choose(null, installed(wuplay)));
         check("saved WuPlay, WuPlay removed", Targets.NUVIO,
                 Targets.choose("wuplay", installed(nuvio)));
+        String tivimate = Targets.TIVIMATE.packageName;
+        check("saved TiviMate, all four installed", Targets.TIVIMATE,
+                Targets.choose("tivimate", installed(stremio, nuvio, wuplay, tivimate)));
+        check("nothing saved, only TiviMate", Targets.TIVIMATE,
+                Targets.choose(null, installed(tivimate)));
+        check("saved TiviMate, TiviMate removed", Targets.NUVIO,
+                Targets.choose("tivimate", installed(nuvio)));
+        check("nothing saved, Nuvio and TiviMate (Nuvio first)", Targets.NUVIO,
+                Targets.choose(null, installed(nuvio, tivimate)));
+        boolean typed = Targets.TIVIMATE.mode == Targets.Mode.TYPE_IN_APP
+                && "ar.tvplayer.tv".equals(tivimate) && "tivimate".equals(Targets.TIVIMATE.id)
+                && Targets.ALL[Targets.ALL.length - 1] == Targets.TIVIMATE;
+        if (!typed) failures++;
+        System.out.println((typed ? "PASS " : "FAIL ") + "TiviMate entry (type-in mode, last in the list)");
         check("nothing installed", null,
                 Targets.choose("stremio", Collections.<String>emptySet()));
 

@@ -11,7 +11,9 @@
 #    - does what the app asked for in its updates folder: install a downloaded
 #      update, go back to the kept previous version, or restart the stick;
 #    - after an update, watches the first start of the new version and goes back
-#      to the old one if the new one never runs.
+#      to the old one if the new one never runs;
+#    - switches the app's TiviMate helper (an accessibility helper limited to TiviMate) on
+#      while TiviMate is the chosen app, and off again otherwise.
 #
 # The app (no root) checks GitHub, downloads and proves the zip is genuine. This
 # script (root) does the rest. They talk through two files in the app's own
@@ -20,7 +22,7 @@
 MODDIR=${0%/*}
 PKG=com.metaljay.stremiovoice
 SERVICE="$PKG/.VoiceService"
-TAG=StremioVoiceModule
+TAG=VoiceSearchModule
 MODID=stremio_voice
 
 say() { log -t "$TAG" "$1"; }
@@ -203,7 +205,9 @@ do_goback() {
         fail "no earlier version is kept"
         return 1
     fi
+    helper_off_for_version_change
     if ! stage_backup; then
+        HELPER_LOCKED=0; LAST_WANT=""   # nothing was staged: let the helper follow the app's choice again
         fail "couldn't get the earlier version ready"
         return 1
     fi
@@ -267,6 +271,7 @@ do_revert() {
     t_new=$(prop "$TRIAL" new_ver)
     t_prev=$(prop "$TRIAL" prev_ver)
     rm -f "$TRIAL"
+    helper_off_for_version_change
     if [ -f "$BACKUP/module.prop" ] && stage_backup; then
         printf '%s\n%s\n' "Went back to $t_prev because $t_new didn’t start." "$t_new" > "$NOTICE"
         chmod 600 "$NOTICE"
@@ -277,6 +282,7 @@ do_revert() {
         [ -z "$SU" ] && SU=/product/bin/su
         "$SU" 2000 -c "cmd notification post -S bigtext -t 'Voice Search' voice-search-revert 'Voice Search $t_new didn’t start. Restart to go back to $t_prev.'" >/dev/null 2>&1
     else
+        HELPER_LOCKED=0; LAST_WANT=""
         say "$t_new didn't start and there is no earlier version to go back to"
     fi
     write_status
@@ -294,6 +300,41 @@ if [ -f "$TRIAL" ]; then
         rm -f "$TRIAL"  # left over from something else
     fi
 fi
+
+# ---------- the TiviMate helper ----------
+
+. "$MODDIR/a11y_list.sh"   # adds or removes our entry in Android's list of accessibility helpers
+
+PREFS=/data/data/$PKG/shared_prefs/voice_search.xml
+LAST_WANT=""
+HELPER_LOCKED=0   # set when a version change is staged: the helper stays off until the restart
+
+# pref KEY: a text setting the app saved (empty if not set).
+pref() { sed -n "s/.*<string name=\"$1\">\(.*\)<\/string>.*/\1/p" "$PREFS" 2>/dev/null | head -n 1; }
+
+# Makes Android's list match what the app has chosen: our helper is on only while TiviMate is
+# the chosen app. Works only when the choice has changed since the last look (the settings tool
+# is slow to start). Other apps' entries in the list are never touched.
+sync_helper() {
+    [ "$HELPER_LOCKED" = 1 ] && return 0
+    want=0
+    [ "$(pref target)" = tivimate ] && want=1
+    [ "$want" = "$LAST_WANT" ] && return 0
+    LAST_WANT=$want
+    if [ "$want" = 1 ]; then
+        a11y_enable && say "TiviMate helper switched on"
+    else
+        a11y_disable && say "TiviMate helper switched off"
+    fi
+}
+
+# Before a different version is staged (going back, or an automatic revert) our entry comes out:
+# the other version knows nothing about it, and would leave it behind.
+helper_off_for_version_change() {
+    HELPER_LOCKED=1
+    a11y_disable
+    say "TiviMate helper switched off for the version change"
+}
 
 # ---------- the tile app ----------
 
@@ -356,6 +397,7 @@ ticks=0       # checks since the trial began
 while true; do
     handle_request
     write_status
+    sync_helper
 
     if pidof "$PKG" >/dev/null 2>&1; then
         setprop debug.alm.enable true

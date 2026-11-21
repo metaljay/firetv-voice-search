@@ -9,7 +9,8 @@ import java.util.Collection;
  * To add an app: add an entry to ALL. An app either has its own search link
  * that takes the spoken words (APP_SEARCH), or only a link that opens one
  * title by its IMDb id, in which case our pick-list finds the title first
- * (PICK_LIST).
+ * (PICK_LIST), or has no link at all but has a search screen of its own, in
+ * which case the words are typed into that screen (TYPE_IN_APP).
  */
 public final class Targets {
 
@@ -18,6 +19,8 @@ public final class Targets {
         APP_SEARCH,
         /** Our pick-list shows matching titles; the chosen one opens in the app. */
         PICK_LIST,
+        /** No search link: the words are typed into the app's own search screen. */
+        TYPE_IN_APP,
     }
 
     public static final class Target {
@@ -54,8 +57,12 @@ public final class Targets {
             "wuplay", "WuPlay", "app.wuplay.androidtv", Mode.PICK_LIST,
             "Pick from a row of posters, then WuPlay opens it", null);
 
+    public static final Target TIVIMATE = new Target(
+            "tivimate", "TiviMate", "ar.tvplayer.tv", Mode.TYPE_IN_APP,
+            "TiviMate's own search: channels, films and series", null);
+
     /** In order of preference when nothing has been chosen. */
-    public static final Target[] ALL = {STREMIO, NUVIO, WUPLAY};
+    public static final Target[] ALL = {STREMIO, NUVIO, WUPLAY, TIVIMATE};
 
     private Targets() {}
 

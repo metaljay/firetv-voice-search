@@ -23,5 +23,5 @@ OLD=$(cat "$STAMP" 2>/dev/null)
 if [ "$NEW" != "$OLD" ]; then
     rm -f /data/system/package_cache/*/StremioVoice-*
     echo "$NEW" > "$STAMP"
-    log -t StremioVoiceModule "app file changed: cleared its cached details"
+    log -t VoiceSearchModule "app file changed: cleared its cached details"
 fi
