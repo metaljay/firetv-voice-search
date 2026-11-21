@@ -44,7 +44,17 @@ public final class QueryCleaner {
         return false;
     }
 
+    /** Tidies the spoken words for any app except TiviMate. */
     public static String clean(String spoken) {
+        return clean(spoken, false);
+    }
+
+    /**
+     * Tidies the spoken words. forTiviMate also drops a trailing "channel" ("sky news channel"
+     * becomes "sky news"), because TiviMate's search wouldn't find the extra word; other apps
+     * get it kept ("weather channel").
+     */
+    public static String clean(String spoken, boolean forTiviMate) {
         if (spoken == null) return "";
         String s = spoken.toLowerCase(Locale.ROOT);
         // Commas and similar marks are spoken-sentence punctuation, not part of a title.
@@ -76,9 +86,9 @@ public final class QueryCleaner {
                 }
             }
             if (changed) continue;
-            // "sky news channel" -> "sky news": TiviMate's search won't find the extra word.
-            // Only when other words come before it, so "channel 4" and "channel" are left alone.
-            if (s.endsWith(" channel")) {
+            // TiviMate only: "sky news channel" -> "sky news". Only when other words come before
+            // it, so "channel 4" and "channel" are left alone.
+            if (forTiviMate && s.endsWith(" channel")) {
                 s = tidy(s.substring(0, s.length() - " channel".length()));
                 changed = true;
             }

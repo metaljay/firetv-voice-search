@@ -14,8 +14,8 @@ import java.util.List;
 
 /**
  * Types spoken words into TiviMate's own Search screen. An Android accessibility service
- * limited to TiviMate (see res/xml/tivimate_helper.xml): it cannot see any other app, and
- * the add-on's script switches it on only while TiviMate is the chosen app.
+ * that gets events from TiviMate only (see res/xml/tivimate_helper.xml) and reads the screen
+ * only while TiviMate is in front. The add-on's script switches it on only while TiviMate is the chosen app.
  *
  * It acts only while a search is waiting in PendingSearch and is under MAX_AGE_MS old. On
  * each look at TiviMate's screen it does the first of these that fits:

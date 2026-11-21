@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Limited to TiviMate: this helper cannot see any other app's screens. -->
+<!-- Android sends this helper events from TiviMate only. (The code also reads the screen only while TiviMate is in front.) -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/tivimate_helper_description"
     android:packageNames="ar.tvplayer.tv"

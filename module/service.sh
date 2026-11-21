@@ -312,13 +312,18 @@ HELPER_LOCKED=0   # set when a version change is staged: the helper stays off un
 # pref KEY: a text setting the app saved (empty if not set).
 pref() { sed -n "s/.*<string name=\"$1\">\(.*\)<\/string>.*/\1/p" "$PREFS" 2>/dev/null | head -n 1; }
 
-# Makes Android's list match what the app has chosen: our helper is on only while TiviMate is
-# the chosen app. Works only when the choice has changed since the last look (the settings tool
-# is slow to start). Other apps' entries in the list are never touched.
+# Makes Android's list match what the app is using: our helper is on only while TiviMate is
+# the app the voice button searches in. Works only when that has changed since the last look
+# (the settings tool is slow to start). Other apps' entries in the list are never touched.
 sync_helper() {
     [ "$HELPER_LOCKED" = 1 ] && return 0
+    # "active_target" is the app the voice button really searches in (the app writes it: the saved
+    # choice, or the fallback when nothing is saved or the saved app is gone). Not written yet
+    # (just booted, or an older version): leave things as they are.
+    active=$(pref active_target)
+    [ -z "$active" ] && return 0
     want=0
-    [ "$(pref target)" = tivimate ] && want=1
+    [ "$active" = tivimate ] && want=1
     [ "$want" = "$LAST_WANT" ] && return 0
     LAST_WANT=$want
     if [ "$want" = 1 ]; then

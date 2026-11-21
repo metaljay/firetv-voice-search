@@ -70,6 +70,23 @@ public class VoiceService extends Service {
     private boolean active = false;   // a press is being handled
     private boolean released = false; // its button-up has arrived
 
+    /** An app was installed, removed or replaced: the app the button searches in may have changed. */
+    private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Uri data = intent.getData();
+            String pkg = data == null ? null : data.getSchemeSpecificPart();
+            for (Targets.Target t : Targets.ALL) {
+                if (t.packageName.equals(pkg)) {
+                    ChooserActivity.publishActiveTarget(VoiceService.this);
+                    Targets.Target now = ChooserActivity.current(VoiceService.this);
+                    Log.i(TAG, "a supported app changed (" + pkg + "), now searching in " + (now == null ? "nothing" : now.name));
+                    return;
+                }
+            }
+        }
+    };
+
     private final BroadcastReceiver keyReceiver = new BroadcastReceiver() {
         @Override
         @SuppressWarnings("deprecation") // the typed overload only exists from Android 13; the stick runs 11
@@ -95,6 +112,14 @@ public class VoiceService extends Service {
         bar = new ListeningBar(this);
         startInForeground();
         registerReceiver(keyReceiver, new IntentFilter(ACTION_KEY_INFO));
+        IntentFilter packages = new IntentFilter();
+        packages.addAction(Intent.ACTION_PACKAGE_ADDED);
+        packages.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        packages.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        packages.addDataScheme("package");
+        registerReceiver(packageReceiver, packages);
+        ChooserActivity.publishActiveTarget(this); // right after boot, and after any update
+
         Updater.dir(this); // makes the folder the add-on's script shares with the app
         UpdateJob.schedule(this); // the scheduled update check; does nothing if already scheduled
         Log.i(TAG, "service started");
@@ -124,6 +149,7 @@ public class VoiceService extends Service {
         Log.i(TAG, "service stopped");
         try {
             unregisterReceiver(keyReceiver);
+            unregisterReceiver(packageReceiver);
         } catch (RuntimeException ignored) {
             // Not registered; nothing to undo.
         }
@@ -240,7 +266,7 @@ public class VoiceService extends Service {
         }
         String heard = candidates.get(0);
         Log.i(TAG, "heard: \"" + heard + "\"");
-        String words = QueryCleaner.clean(heard);
+        String words = QueryCleaner.clean(heard, ChooserActivity.current(this) == Targets.TIVIMATE);
         Log.i(TAG, "search words: \"" + words + "\"");
         if (words.isEmpty()) {
             endSession(false);

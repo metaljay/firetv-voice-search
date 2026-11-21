@@ -31,6 +31,10 @@ public class ChooserActivity extends Activity {
 
     private static final String PREFS = "voice_search";
     private static final String KEY_TARGET = "target";
+    // The app the voice button would really search in right now (the saved choice, or the fallback
+    // when nothing is saved or the saved app is gone). The add-on's script reads this, not
+    // "target", to switch the TiviMate helper on and off. "none" when no supported app is installed.
+    private static final String KEY_ACTIVE_TARGET = "active_target";
 
     static final int BACKGROUND = 0xFF0B0F1A;
     static final int CARD = 0xFF161D2E;
@@ -49,7 +53,15 @@ public class ChooserActivity extends Activity {
     }
 
     static void saveTargetId(Context context, String id) {
-        context.getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_TARGET, id).apply();
+        context.getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_TARGET, id).commit();
+        publishActiveTarget(context);
+    }
+
+    /** Writes the app the next search would use, for the add-on's script. Call when it may have changed. */
+    static void publishActiveTarget(Context context) {
+        Targets.Target t = current(context);
+        context.getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString(KEY_ACTIVE_TARGET, t == null ? "none" : t.id).commit();
     }
 
     static boolean isInstalled(Context context, String packageName) {

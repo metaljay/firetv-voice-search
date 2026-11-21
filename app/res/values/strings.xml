@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tivimate_helper_label">Voice Search: TiviMate helper</string>
-    <string name="tivimate_helper_description">Lets Voice Search type your spoken words into TiviMate\'s own Search screen. It can see TiviMate only, and it is switched on only while TiviMate is the app chosen in Voice Search.</string>
+    <string name="tivimate_helper_description">Lets Voice Search type your spoken words into TiviMate\'s own Search screen. Android sends it events from TiviMate only, and it reads nothing on screen unless TiviMate is in front. It is switched on only while TiviMate is the app chosen in Voice Search.</string>
 </resources>

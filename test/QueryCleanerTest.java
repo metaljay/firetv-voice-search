@@ -13,6 +13,14 @@ public class QueryCleanerTest {
                 + (ok ? "" : " (expected \"" + expected + "\")"));
     }
 
+    private static void tivimate(String spoken, String expected) {
+        String actual = QueryCleaner.clean(spoken, true);
+        boolean ok = expected.equals(actual);
+        if (!ok) failures++;
+        System.out.println((ok ? "PASS " : "FAIL ") + "TiviMate: \"" + spoken + "\" -> \"" + actual + "\""
+                + (ok ? "" : " (expected \"" + expected + "\")"));
+    }
+
     private static void settings(String spoken, boolean expected) {
         boolean actual = QueryCleaner.isSettingsRequest(QueryCleaner.clean(spoken));
         boolean ok = actual == expected;
@@ -66,11 +74,17 @@ public class QueryCleanerTest {
         check("BBC One on tv mate", "bbc one");
         check("Bluey in tivo mate", "bluey");
         check("on tivimate", "");
-        check("sky news channel", "sky news");
-        check("play Sky News channel on TiviMate", "sky news");
+        // The trailing "channel" is dropped for TiviMate only.
+        tivimate("sky news channel", "sky news");
+        tivimate("play Sky News channel on TiviMate", "sky news");
+        tivimate("channel 4", "channel 4");
+        tivimate("channel", "channel");
+        tivimate("the history channel", "the history");
+        tivimate("Bluey", "bluey");
+        check("sky news channel", "sky news channel");
+        check("weather channel", "weather channel");
+        check("play the weather channel on Stremio", "the weather channel");
         check("channel 4", "channel 4");
-        check("channel", "channel");
-        check("the history channel", "the history");
 
         // Spoken settings (2.0): checked on the cleaned words, as the service does.
         settings("Voice Search settings", true);
