@@ -33,6 +33,14 @@ public final class QueryCleaner {
 
     private QueryCleaner() {}
 
+    /**
+     * True if the spoken words ended in "channel" (so the TiviMate trim drops a word): the
+     * listener wants the live channel, not the film or series of that name.
+     */
+    public static boolean endsWithChannel(String spoken) {
+        return !clean(spoken, false).equals(clean(spoken, true));
+    }
+
     /** True if the cleaned words ask for the settings screen, e.g. "voice search settings". */
     public static boolean isSettingsRequest(String cleaned) {
         if (cleaned == null) return false;

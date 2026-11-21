@@ -21,6 +21,13 @@ public class QueryCleanerTest {
                 + (ok ? "" : " (expected \"" + expected + "\")"));
     }
 
+    private static void channel(String spoken, boolean expected) {
+        boolean actual = QueryCleaner.endsWithChannel(spoken);
+        boolean ok = actual == expected;
+        if (!ok) failures++;
+        System.out.println((ok ? "PASS " : "FAIL ") + "ends with \"channel\"? \"" + spoken + "\" -> " + actual);
+    }
+
     private static void settings(String spoken, boolean expected) {
         boolean actual = QueryCleaner.isSettingsRequest(QueryCleaner.clean(spoken));
         boolean ok = actual == expected;
@@ -85,6 +92,18 @@ public class QueryCleanerTest {
         check("weather channel", "weather channel");
         check("play the weather channel on Stremio", "the weather channel");
         check("channel 4", "channel 4");
+
+        // Whether the TiviMate trim dropped a trailing "channel" (the listener wants the live channel).
+        channel("bluey channel", true);
+        channel("Sky News channel", true);
+        channel("play Sky News channel on TiviMate", true);
+        channel("sky news channel please", true);
+        channel("bluey", false);
+        channel("channel 4", false);
+        channel("channel", false);
+        channel("the channel hopper", false);
+        channel("", false);
+        channel(null, false);
 
         // Spoken settings (2.0): checked on the cleaned words, as the service does.
         settings("Voice Search settings", true);

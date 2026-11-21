@@ -12,11 +12,14 @@ final class PendingSearch {
         final String words;
         final long timeMs;
         final int id;
+        /** The listener said "... channel": choose the live channel, not the film or series. */
+        final boolean wantChannel;
 
-        Item(String words, long timeMs, int id) {
+        Item(String words, long timeMs, int id, boolean wantChannel) {
             this.words = words;
             this.timeMs = timeMs;
             this.id = id;
+            this.wantChannel = wantChannel;
         }
     }
 
@@ -25,9 +28,9 @@ final class PendingSearch {
 
     private PendingSearch() {}
 
-    static synchronized void set(String words, long now) {
+    static synchronized void set(String words, long now, boolean wantChannel) {
         counter++;
-        pending = new Item(words, now, counter);
+        pending = new Item(words, now, counter, wantChannel);
     }
 
     /** The waiting search if it is younger than maxAgeMs, else null (and forgotten). */

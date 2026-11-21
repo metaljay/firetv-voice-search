@@ -266,7 +266,9 @@ public class VoiceService extends Service {
         }
         String heard = candidates.get(0);
         Log.i(TAG, "heard: \"" + heard + "\"");
-        String words = QueryCleaner.clean(heard, ChooserActivity.current(this) == Targets.TIVIMATE);
+        boolean forTiviMate = ChooserActivity.current(this) == Targets.TIVIMATE;
+        String words = QueryCleaner.clean(heard, forTiviMate);
+        boolean wantChannel = forTiviMate && QueryCleaner.endsWithChannel(heard);
         Log.i(TAG, "search words: \"" + words + "\"");
         if (words.isEmpty()) {
             endSession(false);
@@ -278,7 +280,7 @@ public class VoiceService extends Service {
             openSettings();
             bar.hide();
         } else {
-            showTargetResult(openTarget(words));
+            showTargetResult(openTarget(words, wantChannel));
         }
         active = false;
         released = false;
@@ -313,7 +315,7 @@ public class VoiceService extends Service {
     }
 
     /** Opens the chosen app's results for the words. Returns the app, or null if none is installed. */
-    private Targets.Target openTarget(String words) {
+    private Targets.Target openTarget(String words, boolean wantChannel) {
         Targets.Target target = ChooserActivity.current(this);
         if (target == null) {
             Log.w(TAG, "no supported app installed");
@@ -324,7 +326,7 @@ public class VoiceService extends Service {
             // No link for this app: open its main screen; the TiviMate helper (an accessibility
             // service limited to TiviMate) then takes the waiting words to its Search screen.
             open = new Intent().setComponent(new ComponentName(target.packageName, TIVIMATE_MAIN));
-            PendingSearch.set(words, System.currentTimeMillis());
+            PendingSearch.set(words, System.currentTimeMillis(), wantChannel);
         } else if (target.mode == Targets.Mode.APP_SEARCH) {
             Uri uri = Uri.parse(target.searchLink + Uri.encode(words));
             open = new Intent(Intent.ACTION_VIEW, uri).setPackage(target.packageName);

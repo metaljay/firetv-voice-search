@@ -47,9 +47,10 @@ run_tests() {
         "$APP_SRC/com/metaljay/stremiovoice/ReleaseNotes.java" \
         "$APP_SRC/com/metaljay/stremiovoice/PackageVerifier.java" \
         "$APP_SRC/com/metaljay/stremiovoice/AssetPicker.java" \
+        "$APP_SRC/com/metaljay/stremiovoice/ResultChooser.java" \
         test/QueryCleanerTest.java test/TargetsTest.java test/ResultRankerTest.java \
         test/VersionsTest.java test/UpdateScheduleTest.java test/ReleaseNotesTest.java \
-        test/PackageVerifierTest.java test/AssetPickerTest.java test/VerifyZip.java
+        test/PackageVerifierTest.java test/AssetPickerTest.java test/ResultChooserTest.java test/VerifyZip.java
     "$JAVA" -cp build/test-classes QueryCleanerTest
     "$JAVA" -cp build/test-classes TargetsTest
     "$JAVA" -cp build/test-classes ResultRankerTest
@@ -57,6 +58,7 @@ run_tests() {
     "$JAVA" -cp build/test-classes UpdateScheduleTest
     "$JAVA" -cp build/test-classes ReleaseNotesTest
     "$JAVA" -cp build/test-classes AssetPickerTest
+    "$JAVA" -cp build/test-classes ResultChooserTest
     echo "== Accessibility-list tests (plain sh)"
     sh test/a11y_list_test.sh
     # Makes throwaway keys and signed zips in build/verifier-test/; leaves debug.keystore alone.

@@ -15,11 +15,12 @@ import java.util.List;
 /**
  * Types spoken words into TiviMate's own Search screen. An Android accessibility service
  * that gets events from TiviMate only (see res/xml/tivimate_helper.xml) and reads the screen
- * only while TiviMate is in front. The add-on's script switches it on only while TiviMate is the chosen app.
+ * only while TiviMate is in front. The add-on's script switches it on only while TiviMate is the
+ * app Voice Search is using.
  *
  * It acts only while a search is waiting in PendingSearch and is under MAX_AGE_MS old. On
  * each look at TiviMate's screen it does the first of these that fits:
- *   1. a search box is showing: fill it, then (about a second later) focus the first result;
+ *   1. a search box is showing: fill it, then (once the results have settled) focus the best card, see ResultChooser;
  *   2. the menu's "Search" item is showing: click it;
  *   3. otherwise press Back (at most MAX_BACKS times, at most one per BACK_GAP_MS), which
  *      peels TiviMate's guide, then its channel list, back to the menu.
@@ -36,8 +37,10 @@ public class TiviMateHelper extends AccessibilityService {
     private static final long SETTLE_AFTER_CLICK_MS = 2500;
     private static final long MENU_STABLE_MS = 400;
     private static final long TICK_MS = 500;
-    private static final long FOCUS_DELAY_MS = 1000;
-    private static final int FOCUS_TRIES = 4;
+    /** After filling the box: choose once TiviMate has been quiet this long, or at the latest after CHOOSE_CAP_MS. */
+    private static final long SETTLE_MS = 700;
+    private static final long CHOOSE_CAP_MS = 3000;
+    private static final long CHOOSE_POLL_MS = 150;
     /** Width of TiviMate's left-hand menu on a 1920-wide screen. */
     private static final int RAIL_RIGHT = 440;
 
@@ -50,6 +53,8 @@ public class TiviMateHelper extends AccessibilityService {
     private long lastClick = 0;
     private long menuSince = 0;   // when the menu got the focus, if it has it now
     private boolean ticking = false;
+    private long lastChangeMs = 0;   // when TiviMate's window last changed
+    private int chooseToken = 0;     // tells a newer choosing from an older one
 
     /** Called by the service when a search has just been put in PendingSearch. */
     static void kick() {
@@ -80,6 +85,7 @@ public class TiviMateHelper extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        lastChangeMs = System.currentTimeMillis();
         evaluate();
     }
 
@@ -135,7 +141,7 @@ public class TiviMateHelper extends AccessibilityService {
             Log.i(TAG, "TiviMate helper: filled the search box with \"" + p.words + "\" (" + ok + ")");
             if (ok) {
                 PendingSearch.clear(p.id);
-                focusFirstResult(1);
+                startChoosing(p.words, p.wantChannel);
             }
             return;
         }
@@ -180,28 +186,73 @@ public class TiviMateHelper extends AccessibilityService {
         }
     }
 
-    /** About a second after filling: put focus on the first result, so OK plays it. */
-    private void focusFirstResult(final int attempt) {
+    /**
+     * After filling the box: TiviMate adds its result rows one at a time (Channels first, then
+     * films and series), so wait until its window has been quiet for SETTLE_MS (at most
+     * CHOOSE_CAP_MS), then put focus on the best card so OK plays it.
+     */
+    private void startChoosing(final String words, final boolean wantChannel) {
+        final int token = ++chooseToken;
+        final long filledAt = System.currentTimeMillis();
+        lastChangeMs = filledAt;
         main.postDelayed(new Runnable() {
             @Override public void run() {
                 try {
+                    if (token != chooseToken) return; // a newer search took over
+                    long now = System.currentTimeMillis();
+                    boolean capped = now - filledAt >= CHOOSE_CAP_MS;
+                    boolean quiet = now - lastChangeMs >= SETTLE_MS;
                     AccessibilityNodeInfo root = getRootInActiveWindow();
                     if (root == null || !TIVIMATE.contentEquals(root.getPackageName())) return;
                     // A newer search is waiting: its own fill-in comes first.
-                    if (PendingSearch.current(System.currentTimeMillis(), MAX_AGE_MS) != null) return;
-                    AccessibilityNodeInfo card = findFirstResult(root);
-                    if (card == null) {
-                        if (attempt < FOCUS_TRIES) focusFirstResult(attempt + 1);
-                        else Log.i(TAG, "TiviMate helper: no results to focus");
-                        return;
+                    if (PendingSearch.current(now, MAX_AGE_MS) != null) return;
+                    if (quiet || capped) {
+                        if (chooseAndFocus(root, words, wantChannel)) return;
+                        if (capped) {
+                            Log.i(TAG, "TiviMate helper: no results to focus");
+                            return;
+                        }
                     }
-                    boolean ok = card.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
-                    Log.i(TAG, "TiviMate helper: focused the first result (" + ok + ")");
+                    main.postDelayed(this, CHOOSE_POLL_MS);
                 } catch (RuntimeException e) {
                     Log.w(TAG, "TiviMate helper: ignored a screen it could not read", e);
                 }
             }
-        }, FOCUS_DELAY_MS);
+        }, CHOOSE_POLL_MS);
+    }
+
+    /** Gathers the visible result cards, lets ResultChooser pick one and focuses it. False if there are no cards. */
+    private boolean chooseAndFocus(AccessibilityNodeInfo root, String words, boolean wantChannel) {
+        List<AccessibilityNodeInfo> all = new ArrayList<>();
+        collect(root, all);
+        Rect r = new Rect();
+
+        // Row headers: plain text ("Channels", "Movies", "Shows"). Text inside something clickable
+        // is a card's or the menu's, not a header.
+        List<ResultChooser.Header> headers = new ArrayList<>();
+        for (AccessibilityNodeInfo n : all) {
+            CharSequence t = n.getText();
+            if (t == null || !n.isVisibleToUser() || ResultChooser.knownRow(t.toString()) == null) continue;
+            if (hasClickableAncestor(n)) continue;
+            n.getBoundsInScreen(r);
+            headers.add(new ResultChooser.Header(t.toString(), r.top));
+        }
+
+        List<AccessibilityNodeInfo> nodes = new ArrayList<>();
+        List<ResultChooser.Card> cards = new ArrayList<>();
+        for (AccessibilityNodeInfo n : all) {
+            if (!isResultCard(n)) continue;
+            n.getBoundsInScreen(r);
+            nodes.add(n);
+            cards.add(new ResultChooser.Card(ResultChooser.rowFor(headers, r.top), cardTitle(n), r.top, r.left));
+        }
+        int pick = ResultChooser.choose(cards, words, wantChannel);
+        if (pick < 0) return false;
+        ResultChooser.Card c = cards.get(pick);
+        boolean ok = nodes.get(pick).performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+        Log.i(TAG, "TiviMate helper: focused " + (c.row == null ? "(no row header)" : c.row) + ": "
+                + c.title + " (" + ok + ")");
+        return true;
     }
 
     // ----- finding things on TiviMate's screen -----
@@ -270,27 +321,37 @@ public class TiviMateHelper extends AccessibilityService {
         return null;
     }
 
-    /** The first result card: a focusable card (not the menu, not the box) below the search bar. */
-    private static AccessibilityNodeInfo findFirstResult(AccessibilityNodeInfo root) {
-        List<AccessibilityNodeInfo> all = new ArrayList<>();
-        collect(root, all);
+    /** A result card: a focusable card (not the menu, not the search box) below the search bar. */
+    private static boolean isResultCard(AccessibilityNodeInfo n) {
+        if (!n.isFocusable() || !n.isVisibleToUser() || isSearchBox(n)) return false;
+        String c = String.valueOf(n.getClassName());
+        if (c.endsWith("LinearLayout") || c.endsWith("GridView") || c.endsWith("ImageView")) return false;
         Rect r = new Rect();
-        AccessibilityNodeInfo best = null;
-        int bestTop = Integer.MAX_VALUE, bestLeft = Integer.MAX_VALUE;
-        for (AccessibilityNodeInfo n : all) {
-            if (!n.isFocusable() || !n.isVisibleToUser() || isSearchBox(n)) continue;
-            String c = String.valueOf(n.getClassName());
-            if (c.endsWith("LinearLayout") || c.endsWith("GridView") || c.endsWith("ImageView")) continue;
-            n.getBoundsInScreen(r);
-            int w = r.width();
-            if (r.top < 250 || w < 150 || w > 450) continue;
-            if (r.top < bestTop || (r.top == bestTop && r.left < bestLeft)) {
-                best = n;
-                bestTop = r.top;
-                bestLeft = r.left;
-            }
+        n.getBoundsInScreen(r);
+        return r.top >= 250 && r.width() >= 150 && r.width() <= 450;
+    }
+
+    /** A card's title: its first text that is not a rating or "No information". */
+    private static String cardTitle(AccessibilityNodeInfo card) {
+        List<AccessibilityNodeInfo> inside = new ArrayList<>();
+        collect(card, inside);
+        for (AccessibilityNodeInfo n : inside) {
+            CharSequence t = n.getText();
+            if (t == null) continue;
+            String s = t.toString().trim();
+            if (s.isEmpty() || s.equalsIgnoreCase("No information") || s.matches("\\d+(\\.\\d+)?")) continue;
+            return s;
         }
-        return best;
+        return "";
+    }
+
+    private static boolean hasClickableAncestor(AccessibilityNodeInfo n) {
+        AccessibilityNodeInfo p = n.getParent();
+        for (int i = 0; p != null && i < 3; i++) {
+            if (p.isClickable()) return true;
+            p = p.getParent();
+        }
+        return false;
     }
 
     private static void collect(AccessibilityNodeInfo n, List<AccessibilityNodeInfo> out) {
