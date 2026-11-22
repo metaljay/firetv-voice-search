@@ -1,6 +1,11 @@
 package com.metaljay.stremiovoice;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * The streaming apps voice search can open, and the rule for choosing one.
@@ -11,6 +16,10 @@ import java.util.Collection;
  * title by its IMDb id, in which case our pick-list finds the title first
  * (PICK_LIST), or has no link at all but has a search screen of its own, in
  * which case the words are typed into that screen (TYPE_IN_APP).
+ *
+ * Every app also has the names it can be called by when spoken ("on smart tube"). Apps with no
+ * search at all (Netflix and friends) are in NO_SEARCH: they can be named, but never chosen as
+ * the default, and they are only ever opened.
  */
 public final class Targets {
 
@@ -21,6 +30,8 @@ public final class Targets {
         PICK_LIST,
         /** No search link: the words are typed into the app's own search screen. */
         TYPE_IN_APP,
+        /** The app has no search: it can only be opened on its home screen. */
+        OPEN_ONLY,
     }
 
     public static final class Target {
@@ -33,38 +44,135 @@ public final class Targets {
         public final String description;
         /** APP_SEARCH only: the search link, to which the URL-encoded words are appended. */
         public final String searchLink;
+        /** What the listener may call it, lower case as speech-to-text writes it ("smart tube"). */
+        public final String[] spokenNames;
 
         Target(String id, String name, String packageName, Mode mode, String description,
-               String searchLink) {
+               String searchLink, String... spokenNames) {
             this.id = id;
             this.name = name;
             this.packageName = packageName;
             this.mode = mode;
             this.description = description;
             this.searchLink = searchLink;
+            this.spokenNames = spokenNames;
         }
     }
 
     public static final Target STREMIO = new Target(
             "stremio", "Stremio", "com.stremio.one", Mode.APP_SEARCH,
-            "Stremio's own search results", "stremio:///search?search=");
+            "Stremio's own search results", "stremio:///search?search=",
+            "stremio");
 
     public static final Target NUVIO = new Target(
             "nuvio", "Nuvio", "com.nuvio.tv", Mode.PICK_LIST,
-            "Pick from a row of posters, then Nuvio opens it", null);
+            "Pick from a row of posters, then Nuvio opens it", null,
+            "nuvio");
 
     public static final Target WUPLAY = new Target(
             "wuplay", "WuPlay", "app.wuplay.androidtv", Mode.PICK_LIST,
-            "Pick from a row of posters, then WuPlay opens it", null);
+            "Pick from a row of posters, then WuPlay opens it", null,
+            "wuplay", "wu play", "woo play");
 
     public static final Target TIVIMATE = new Target(
             "tivimate", "TiviMate", "ar.tvplayer.tv", Mode.TYPE_IN_APP,
-            "TiviMate's own search: channels, films and series", null);
+            "TiviMate's own search: channels, films and series", null,
+            "tivimate", "tivi mate", "tv mate", "tivo mate");
+
+    public static final Target SMARTTUBE = new Target(
+            "smarttube", "SmartTube", "org.smarttube.stable", Mode.APP_SEARCH,
+            "SmartTube's own search results", "https://www.youtube.com/results?search_query=",
+            "smarttube", "smart tube");
+
+    /**
+     * Amazon's own YouTube app. Its link opens on "who's watching" first; until the stick test
+     * shows the search survives that, it is not in ALL (so not offered in settings) but can be named.
+     */
+    public static final Target YOUTUBE = new Target(
+            "youtube", "YouTube", "com.amazon.firetv.youtube", Mode.APP_SEARCH,
+            "YouTube's own search results", "https://www.youtube.com/results?search_query=",
+            "youtube", "you tube");
+
+    // Apps with no search link: opened on their home screen (see NO_SEARCH).
+    public static final Target NETFLIX = new Target(
+            "netflix", "Netflix", "com.netflix.ninja", Mode.OPEN_ONLY, "", null,
+            "netflix");
+    public static final Target DISNEY = new Target(
+            "disney", "Disney+", "com.disney.disneyplus", Mode.OPEN_ONLY, "", null,
+            "disney plus", "disney+", "disney");
+    public static final Target IPLAYER = new Target(
+            "iplayer", "BBC iPlayer", "uk.co.bbc.iplayer", Mode.OPEN_ONLY, "", null,
+            "bbc iplayer", "bbc i player", "iplayer", "i player");
+    public static final Target CHANNEL4 = new Target(
+            "channel4", "Channel 4", "com.channel4.ondemand", Mode.OPEN_ONLY, "", null,
+            "channel 4", "channel four", "all 4", "all four");
+    public static final Target MY5 = new Target(
+            "my5", "My5", "com.mobileiq.demand5", Mode.OPEN_ONLY, "", null,
+            "my5", "my 5", "channel 5", "channel five");
+    public static final Target PRIME = new Target(
+            "prime", "Prime Video", "com.amazon.firebat", Mode.OPEN_ONLY, "", null,
+            "amazon prime video", "prime video", "amazon prime", "amazon");
 
     /** In order of preference when nothing has been chosen. */
-    public static final Target[] ALL = {STREMIO, NUVIO, WUPLAY, TIVIMATE};
+    public static final Target[] ALL = {STREMIO, NUVIO, WUPLAY, TIVIMATE, SMARTTUBE};
+
+    /** Apps that can be named but have no search: they are only opened. Never the default. */
+    public static final Target[] NO_SEARCH = {NETFLIX, DISNEY, IPLAYER, CHANNEL4, MY5, PRIME};
+
+    /** Every app that can be named: the settings list, then YouTube, then the no-search apps. */
+    private static final List<Target> NAMEABLE = new ArrayList<>();
+    /** Each spoken name with its app, longest name first, so "amazon prime video" beats "amazon". */
+    private static final List<Object[]> NAMES = new ArrayList<>();
+
+    static {
+        Collections.addAll(NAMEABLE, ALL);
+        NAMEABLE.add(YOUTUBE);
+        Collections.addAll(NAMEABLE, NO_SEARCH);
+        for (Target t : NAMEABLE) {
+            for (String n : t.spokenNames) NAMES.add(new Object[] {n, t});
+        }
+        Collections.sort(NAMES, new Comparator<Object[]>() {
+            @Override
+            public int compare(Object[] a, Object[] b) {
+                return ((String) b[0]).length() - ((String) a[0]).length();
+            }
+        });
+    }
 
     private Targets() {}
+
+    /** Every spoken name of every app, as the trailing words that should be dropped from a search. */
+    static List<String> spokenNames() {
+        List<String> out = new ArrayList<>();
+        for (Object[] n : NAMES) out.add((String) n[0]);
+        return out;
+    }
+
+    /**
+     * The app named at the end of what was said ("bluey on netflix" -> Netflix), or null if none is.
+     * Only a trailing "on <name>" or "in <name>" counts, so a title that merely contains a name
+     * ("once upon a time in hollywood") is left alone.
+     */
+    public static Target named(String spoken) {
+        if (spoken == null) return null;
+        String s = QueryCleaner.normalise(spoken);
+        boolean trimmed = true;
+        while (trimmed) {
+            trimmed = false;
+            if (s.endsWith(" please")) {
+                s = QueryCleaner.normalise(s.substring(0, s.length() - " please".length()));
+                trimmed = true;
+            }
+        }
+        for (Object[] n : NAMES) {
+            String name = (String) n[0];
+            if (s.equals("on " + name) || s.equals("in " + name)
+                    || s.endsWith(" on " + name) || s.endsWith(" in " + name)) {
+                return (Target) n[1];
+            }
+        }
+        return null;
+    }
 
     public static Target byId(String id) {
         if (id == null) return null;

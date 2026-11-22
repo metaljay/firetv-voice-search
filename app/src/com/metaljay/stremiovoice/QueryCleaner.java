@@ -15,15 +15,18 @@ public final class QueryCleaner {
         "can you", "please", "alexa", "search", "watch", "find", "play",
     };
 
-    private static final String[] TAILS = {
-        "on stremio", "in stremio", "on nuvio", "in nuvio",
-        // WuPlay, and how speech-to-text may spell it.
-        "on wuplay", "in wuplay", "on wu play", "in wu play", "on woo play", "in woo play",
-        // TiviMate, and how speech-to-text may spell it.
-        "on tivimate", "in tivimate", "on tivi mate", "in tivi mate",
-        "on tv mate", "in tv mate", "on tivo mate", "in tivo mate",
-        "please",
-    };
+    // "on stremio", "in smart tube", ... for every app that can be named (longest first), then "please".
+    private static final String[] TAILS = buildTails();
+
+    private static String[] buildTails() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String name : Targets.spokenNames()) {
+            out.add("on " + name);
+            out.add("in " + name);
+        }
+        out.add("please");
+        return out.toArray(new String[0]);
+    }
 
     // Spoken words (after clean()) that open the Voice Search settings screen instead of searching.
     private static final String[] SETTINGS_PHRASES = {
@@ -50,6 +53,26 @@ public final class QueryCleaner {
             if (s.equals(phrase)) return true;
         }
         return false;
+    }
+
+    /** True only for a bare "Alexa" (with "hey" / "ok" and punctuation around it): the listener wants Alexa herself. */
+    public static boolean isAlexaRequest(String spoken) {
+        if (spoken == null) return false;
+        String s = normalise(spoken);
+        for (String hello : new String[] {"hey", "ok", "okay", "hi", "hello"}) {
+            if (s.startsWith(hello + " ")) {
+                s = normalise(s.substring(hello.length()));
+                break;
+            }
+        }
+        return s.equals("alexa");
+    }
+
+    /** Lower case, spoken-sentence punctuation removed, spaces tidied. */
+    static String normalise(String spoken) {
+        String s = spoken.toLowerCase(Locale.ROOT);
+        s = s.replaceAll("[,;:!?]", " ");
+        return tidy(s);
     }
 
     /** Tidies the spoken words for any app except TiviMate. */

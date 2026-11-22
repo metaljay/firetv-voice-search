@@ -35,6 +35,13 @@ public class QueryCleanerTest {
         System.out.println((ok ? "PASS " : "FAIL ") + "settings? \"" + spoken + "\" -> " + actual);
     }
 
+    private static void alexa(String spoken, boolean expected) {
+        boolean actual = QueryCleaner.isAlexaRequest(spoken);
+        boolean ok = actual == expected;
+        if (!ok) failures++;
+        System.out.println((ok ? "PASS " : "FAIL ") + "Alexa request? \"" + spoken + "\" -> " + actual);
+    }
+
     public static void main(String[] args) {
         // The cases from the brief.
         check("play Peppa Pig", "peppa pig");
@@ -115,6 +122,37 @@ public class QueryCleanerTest {
         settings("voice search", false);
         settings("The Voice", false);
         settings("", false);
+
+        // 2.5: every app's name is dropped from the words, whichever app it is.
+        check("bluey on smart tube", "bluey");
+        check("Peppa Pig on SmartTube please", "peppa pig");
+        check("play bluey on youtube", "bluey");
+        check("bluey on you tube", "bluey");
+        check("bluey on netflix", "bluey");
+        check("play Bluey on Disney Plus", "bluey");
+        check("bluey on bbc iplayer", "bluey");
+        check("bluey on all 4", "bluey");
+        check("bluey on my 5", "bluey");
+        check("bluey on prime video", "bluey");
+        check("bluey on amazon", "bluey");
+        check("once upon a time in hollywood", "once upon a time in hollywood");
+        check("on netflix", "");
+        tivimate("sky news channel on tivi mate", "sky news");
+        tivimate("bluey on smart tube", "bluey");
+
+        // 2.5: a bare "Alexa" hands the next press to Alexa.
+        alexa("Alexa", true);
+        alexa("alexa.", true);
+        alexa("hey alexa", true);
+        alexa("Hey, Alexa!", true);
+        alexa("OK Alexa", true);
+        alexa("  ALEXA  ", true);
+        alexa("alexa play bluey", false);
+        alexa("alexa what's the weather", false);
+        alexa("bluey", false);
+        alexa("alexandra", false);
+        alexa("", false);
+        alexa(null, false);
 
         if (failures > 0) {
             System.out.println(failures + " test(s) FAILED");

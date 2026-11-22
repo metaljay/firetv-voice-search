@@ -35,6 +35,8 @@ public class ChooserActivity extends Activity {
     // when nothing is saved or the saved app is gone). The add-on's script reads this, not
     // "target", to switch the TiviMate helper on and off. "none" when no supported app is installed.
     private static final String KEY_ACTIVE_TARGET = "active_target";
+    // Whether saying "on <app>" picks the app (default on). Off: the name is dropped and the default is used.
+    private static final String KEY_APP_NAMES = "app_names";
 
     static final int BACKGROUND = 0xFF0B0F1A;
     static final int CARD = 0xFF161D2E;
@@ -57,9 +59,26 @@ public class ChooserActivity extends Activity {
         publishActiveTarget(context);
     }
 
+    static boolean appNamesEnabled(Context context) {
+        return context.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_APP_NAMES, true);
+    }
+
+    static void setAppNamesEnabled(Context context, boolean on) {
+        context.getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_APP_NAMES, on).commit();
+    }
+
     /** Writes the app the next search would use, for the add-on's script. Call when it may have changed. */
     static void publishActiveTarget(Context context) {
-        Targets.Target t = current(context);
+        publishActiveTarget(context, null);
+    }
+
+    /**
+     * Same, but with an app that was just reached by name: the script then sees that app (so the
+     * TiviMate helper is on while a by-name TiviMate search is under way), until the next call
+     * without one puts the default back.
+     */
+    static void publishActiveTarget(Context context, Targets.Target byName) {
+        Targets.Target t = byName != null ? byName : current(context);
         context.getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putString(KEY_ACTIVE_TARGET, t == null ? "none" : t.id).commit();
     }
@@ -101,7 +120,7 @@ public class ChooserActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(title);
 
-        TextView intro = text("Hold the voice button and say a title. Results open in:", 18, GREY);
+        TextView intro = text("Hold the voice button and say a title, or a title and \"on\" an app. Results open in:", 18, GREY);
         intro.setPadding(0, dp(4), 0, dp(12));
         root.addView(intro);
 
@@ -164,6 +183,7 @@ public class ChooserActivity extends Activity {
         Targets.Target current = current(this);
         View focus = null;
 
+        rows.addView(namesRow());
         for (final Targets.Target t : Targets.ALL) {
             boolean installed = isInstalled(this, t.packageName);
             boolean selected = t == current;
@@ -171,10 +191,10 @@ public class ChooserActivity extends Activity {
             rows.addView(row);
             if (installed && (t.id.equals(focusId) || (focusId == null && selected))) focus = row;
         }
-        if (focus == null && rows.getChildCount() > 0) focus = rows.getChildAt(0);
+        if (focus == null && rows.getChildCount() > 1) focus = rows.getChildAt(1);
         if (focus != null) focus.requestFocus();
 
-        saved.setText(current == null ? "Install Stremio, Nuvio, WuPlay or TiviMate to use voice search."
+        saved.setText(current == null ? "Install Stremio, Nuvio, WuPlay, TiviMate or SmartTube to use voice search."
                 : "The voice button searches in " + current.name + ".");
     }
 
@@ -182,10 +202,10 @@ public class ChooserActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(28), dp(8), dp(28), dp(8)); // tight enough that four rows and the buttons fit
+        row.setPadding(dp(28), dp(5), dp(28), dp(5)); // tight, so more rows fit; the screen scrolls for the rest
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(8);
+        lp.bottomMargin = dp(6);
         row.setLayoutParams(lp);
 
         final GradientDrawable bg = new GradientDrawable();
@@ -223,6 +243,52 @@ public class ChooserActivity extends Activity {
                 refresh(t.id);
                 saved.setText("Saved \u2713  The voice button now searches in " + t.name + ".");
                 done.requestFocus(); // one more press closes the screen
+            }
+        });
+        return row;
+    }
+
+    /** The "Say the app's name" switch, above the app rows. A press flips it and saves at once. */
+    private View namesRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(28), dp(5), dp(28), dp(5));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.bottomMargin = dp(6);
+        row.setLayoutParams(lp);
+
+        final GradientDrawable bg = new GradientDrawable();
+        bg.setColor(CARD);
+        bg.setCornerRadius(dp(16));
+        row.setBackground(bg);
+
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.addView(text("Say the app's name", 24, Color.WHITE));
+        words.addView(text("\"Bluey on Netflix\" opens that app's results; off, the app below is always used", 16, GREY));
+        row.addView(words, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        final TextView value = text(appNamesEnabled(this) ? "On" : "Off", 24, ACCENT);
+        value.setTypeface(Typeface.DEFAULT_BOLD);
+        row.addView(value);
+
+        row.setFocusable(true);
+        row.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                bg.setStroke(hasFocus ? dp(4) : 0, Color.WHITE);
+            }
+        });
+        row.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                boolean on = !appNamesEnabled(ChooserActivity.this);
+                setAppNamesEnabled(ChooserActivity.this, on);
+                value.setText(on ? "On" : "Off");
+                saved.setText("Saved \u2713  " + (on ? "Saying an app's name now picks it."
+                        : "The app's name is now ignored; the app below is always used."));
             }
         });
         return row;

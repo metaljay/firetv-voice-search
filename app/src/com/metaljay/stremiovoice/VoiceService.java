@@ -63,7 +63,18 @@ public class VoiceService extends Service {
     /** Shown when nothing usable was heard. */
     private static final String MSG_NOT_CAUGHT = "Didn't catch that. Try again";
 
+    /** How long the TiviMate helper stays on after TiviMate was reached by name (it is not the default). */
+    private static final long BY_NAME_HELPER_MS = 60000;
+
     private final Handler main = new Handler(Looper.getMainLooper());
+    /** Separate from main, whose callbacks are cleared on every press: puts the default back for the script. */
+    private final Handler later = new Handler(Looper.getMainLooper());
+    private final Runnable republishDefault = new Runnable() {
+        @Override
+        public void run() {
+            ChooserActivity.publishActiveTarget(VoiceService.this);
+        }
+    };
     private ListeningBar bar;
     private SpeechRecognizer recognizer;
 
@@ -156,6 +167,7 @@ public class VoiceService extends Service {
             // Not registered; nothing to undo.
         }
         main.removeCallbacksAndMessages(null);
+        later.removeCallbacksAndMessages(null);
         destroyRecognizer();
         bar.hide();
         super.onDestroy();
@@ -298,7 +310,25 @@ public class VoiceService extends Service {
         }
         String heard = candidates.get(0);
         Log.i(TAG, "heard: \"" + heard + "\"");
-        boolean forTiviMate = ChooserActivity.current(this) == Targets.TIVIMATE;
+
+        // The app to search in: the one named ("... on Stremio") if saying names is on and the app is
+        // installed, else the default. A named app that isn't installed is said so in the bar.
+        Targets.Target target = ChooserActivity.current(this);
+        String note = null;
+        Targets.Target named = ChooserActivity.appNamesEnabled(this) ? Targets.named(heard) : null;
+        if (named != null) {
+            if (named.mode == Targets.Mode.OPEN_ONLY) {
+                Log.i(TAG, "named " + named.name + " has no search; using the default for now");
+            } else if (ChooserActivity.isInstalled(this, named.packageName)) {
+                target = named;
+                Log.i(TAG, "app named: " + named.name);
+            } else {
+                note = named.name + " isn't installed" + (target == null ? "" : ", searching in " + target.name);
+                Log.i(TAG, note);
+            }
+        }
+
+        boolean forTiviMate = target == Targets.TIVIMATE;
         String words = QueryCleaner.clean(heard, forTiviMate);
         boolean wantChannel = forTiviMate && QueryCleaner.endsWithChannel(heard);
         Log.i(TAG, "search words: \"" + words + "\"");
@@ -312,7 +342,12 @@ public class VoiceService extends Service {
             openSettings();
             bar.hide();
         } else {
-            showTargetResult(openTarget(words, wantChannel));
+            Targets.Target opened = openTarget(target, words, wantChannel);
+            if (note != null && opened != null) {
+                bar.showMessage(note);
+            } else {
+                showTargetResult(opened);
+            }
         }
         active = false;
         released = false;
@@ -346,9 +381,8 @@ public class VoiceService extends Service {
         }
     }
 
-    /** Opens the chosen app's results for the words. Returns the app, or null if none is installed. */
-    private Targets.Target openTarget(String words, boolean wantChannel) {
-        Targets.Target target = ChooserActivity.current(this);
+    /** Opens the app's results for the words. Returns the app, or null if there is none to open. */
+    private Targets.Target openTarget(Targets.Target target, String words, boolean wantChannel) {
         if (target == null) {
             Log.w(TAG, "no supported app installed");
             return null;
@@ -359,6 +393,13 @@ public class VoiceService extends Service {
             // service limited to TiviMate) then takes the waiting words to its Search screen.
             open = new Intent().setComponent(new ComponentName(target.packageName, TIVIMATE_MAIN));
             PendingSearch.set(words, System.currentTimeMillis(), wantChannel);
+            // The script keeps the TiviMate helper on only while TiviMate is the published app. If it
+            // was reached by name, publish it for a minute, then put the default back.
+            later.removeCallbacks(republishDefault);
+            if (target != ChooserActivity.current(this)) {
+                ChooserActivity.publishActiveTarget(this, target);
+                later.postDelayed(republishDefault, BY_NAME_HELPER_MS);
+            }
         } else if (target.mode == Targets.Mode.APP_SEARCH) {
             Uri uri = Uri.parse(target.searchLink + Uri.encode(words));
             open = new Intent(Intent.ACTION_VIEW, uri).setPackage(target.packageName);
