@@ -104,15 +104,15 @@ public class TargetsTest {
         boolean order = Arrays.equals(Targets.ALL,
                 new Target[] {Targets.STREMIO, Targets.NUVIO, Targets.WUPLAY, Targets.TIVIMATE, Targets.SMARTTUBE, Targets.AMAZON});
         if (!order) failures++;
-        System.out.println((order ? "PASS " : "FAIL ") + "ALL order = settings order, YouTube not in it yet");
+        System.out.println((order ? "PASS " : "FAIL ") + "ALL order = settings order, YouTube not in it");
 
         boolean smart = Targets.SMARTTUBE.mode == Targets.Mode.APP_SEARCH
                 && "org.smarttube.stable".equals(Targets.SMARTTUBE.packageName)
                 && "https://www.youtube.com/results?search_query=".equals(Targets.SMARTTUBE.searchLink)
-                && Targets.YOUTUBE.mode == Targets.Mode.APP_SEARCH
+                && Targets.YOUTUBE.mode == Targets.Mode.OPEN_ONLY
                 && "com.amazon.firetv.youtube".equals(Targets.YOUTUBE.packageName);
         if (!smart) failures++;
-        System.out.println((smart ? "PASS " : "FAIL ") + "SmartTube and YouTube entries");
+        System.out.println((smart ? "PASS " : "FAIL ") + "SmartTube entry; YouTube is an open-only app (its search was lost at the profile step)");
 
         boolean open = true;
         for (Target t : Targets.NO_SEARCH) {
@@ -125,7 +125,6 @@ public class TargetsTest {
         java.util.Set<String> seen = new HashSet<>();
         boolean unique = true;
         java.util.List<Target> everyone = new java.util.ArrayList<>(Arrays.asList(Targets.ALL));
-        everyone.add(Targets.YOUTUBE);
         everyone.addAll(Arrays.asList(Targets.NO_SEARCH));
         for (Target t : everyone) {
             for (String n : t.spokenNames) {

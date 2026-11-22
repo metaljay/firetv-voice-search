@@ -360,9 +360,9 @@ public class VoiceService extends Service {
         } else if (openOnly != null) {
             if (openAmazonResults(words)) {
                 Log.i(TAG, "opened Amazon search for \"" + words + "\" (" + openOnly.name + " has no search)");
-                bar.showMessage(openOnly.name + " has no search, showing Amazon's results");
+                bar.showMessage(openOnly.name + " can't be searched from here, showing Amazon's results");
             } else {
-                bar.showMessage(openApp(openOnly) ? openOnly.name + " has no search, opened it for you"
+                bar.showMessage(openApp(openOnly) ? openOnly.name + " can't be searched from here, opened it for you"
                         : "Couldn't open " + openOnly.name);
             }
         } else {

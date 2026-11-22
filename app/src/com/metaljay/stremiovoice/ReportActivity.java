@@ -229,7 +229,6 @@ public class ReportActivity extends Activity {
         List<String> installed = new ArrayList<>();
         List<Targets.Target> all = new ArrayList<>();
         java.util.Collections.addAll(all, Targets.ALL);
-        all.add(Targets.YOUTUBE);
         java.util.Collections.addAll(all, Targets.NO_SEARCH);
         for (Targets.Target t : all) {
             if (t.mode != Targets.Mode.AMAZON_SEARCH && ChooserActivity.isInstalled(c, t.packageName)) installed.add(t.name);

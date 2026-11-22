@@ -18,7 +18,7 @@ import java.util.Locale;
  * which case the words are typed into that screen (TYPE_IN_APP).
  *
  * Every app also has the names it can be called by when spoken ("on smart tube"). Apps with no
- * search at all (Netflix and friends) are in NO_SEARCH: they can be named, but never chosen as
+ * search at all (Netflix, YouTube and friends) are in NO_SEARCH: they can be named, but never chosen as
  * the default, and they are only ever opened.
  */
 public final class Targets {
@@ -96,15 +96,6 @@ public final class Targets {
             "Amazon's own results screen: matches from all your apps", null,
             "amazon search");
 
-    /**
-     * Amazon's own YouTube app. Its link opens on "who's watching" first; until the stick test
-     * shows the search survives that, it is not in ALL (so not offered in settings) but can be named.
-     */
-    public static final Target YOUTUBE = new Target(
-            "youtube", "YouTube", "com.amazon.firetv.youtube", Mode.APP_SEARCH,
-            "YouTube's own search results", "https://www.youtube.com/results?search_query=",
-            "youtube", "you tube");
-
     // Apps with no search link: opened on their home screen (see NO_SEARCH).
     public static final Target NETFLIX = new Target(
             "netflix", "Netflix", "com.netflix.ninja", Mode.OPEN_ONLY, "", null,
@@ -121,6 +112,14 @@ public final class Targets {
     public static final Target MY5 = new Target(
             "my5", "My5", "com.mobileiq.demand5", Mode.OPEN_ONLY, "", null,
             "my5", "my 5", "channel 5", "channel five");
+    /**
+     * Amazon's own YouTube app. Stick test (22 Nov): its search link lands on the last-used
+     * profile's home page, which has no search box, so the words are lost; it is treated as an
+     * app with no search (Amazon's results, else just opened).
+     */
+    public static final Target YOUTUBE = new Target(
+            "youtube", "YouTube", "com.amazon.firetv.youtube", Mode.OPEN_ONLY, "", null,
+            "youtube", "you tube");
     public static final Target PRIME = new Target(
             "prime", "Prime Video", "com.amazon.firebat", Mode.OPEN_ONLY, "", null,
             "amazon prime video", "prime video", "amazon prime", "amazon");
@@ -129,16 +128,15 @@ public final class Targets {
     public static final Target[] ALL = {STREMIO, NUVIO, WUPLAY, TIVIMATE, SMARTTUBE, AMAZON};
 
     /** Apps that can be named but have no search: they are only opened. Never the default. */
-    public static final Target[] NO_SEARCH = {NETFLIX, DISNEY, IPLAYER, CHANNEL4, MY5, PRIME};
+    public static final Target[] NO_SEARCH = {NETFLIX, DISNEY, IPLAYER, CHANNEL4, MY5, YOUTUBE, PRIME};
 
-    /** Every app that can be named: the settings list, then YouTube, then the no-search apps. */
+    /** Every app that can be named: the settings list, then the no-search apps. */
     private static final List<Target> NAMEABLE = new ArrayList<>();
     /** Each spoken name with its app, longest name first, so "amazon prime video" beats "amazon". */
     private static final List<Object[]> NAMES = new ArrayList<>();
 
     static {
         Collections.addAll(NAMEABLE, ALL);
-        NAMEABLE.add(YOUTUBE);
         Collections.addAll(NAMEABLE, NO_SEARCH);
         for (Target t : NAMEABLE) {
             for (String n : t.spokenNames) NAMES.add(new Object[] {n, t});
