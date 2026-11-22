@@ -61,11 +61,17 @@ run_tests() {
     "$JAVA" -cp build/test-classes ResultChooserTest
     echo "== Accessibility-list tests (plain sh)"
     sh test/a11y_list_test.sh
+    echo "== Boot guard tests (plain sh)"
+    sh test/check_whitelist_test.sh
     # Makes throwaway keys and signed zips in build/verifier-test/; leaves debug.keystore alone.
     "$JAVA" -cp build/test-classes PackageVerifierTest
 }
 
 build_apk() {
+    echo "== Boot guard: every platform permission the app asks for is on the system whitelist"
+    sh ./check_whitelist.sh app/AndroidManifest.xml \
+        module/system/etc/permissions/privapp-permissions-com.metaljay.stremiovoice.xml \
+        || { echo "The build stops here: the stick would not boot." >&2; exit 1; }
     echo "== Compile"
     rm -rf build/classes build/dex build/apk
     mkdir -p build/classes build/dex build/apk
