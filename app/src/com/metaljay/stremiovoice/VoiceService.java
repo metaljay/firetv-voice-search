@@ -84,6 +84,8 @@ public class VoiceService extends Service {
             ChooserActivity.publishActiveTarget(VoiceService.this);
         }
     };
+    /** Test hook only: pretend this app is the default (see onStartCommand). */
+    private Targets.Target testTarget = null;
     private ListeningBar bar;
     private SpeechRecognizer recognizer;
 
@@ -168,8 +170,23 @@ public class VoiceService extends Service {
                 // Test hook (needs root to send): "--ei talk_ms N" acts out a button press that lasts N ms
                 // before the words arrive, so getting TiviMate ready can be timed without the remote.
                 int talkMs = intent.getIntExtra("talk_ms", 0);
+                String forced = intent.getStringExtra("target"); // test: pretend this app is the default
+                testTarget = forced == null ? null : Targets.byId(forced);
+                final String partials = intent.getStringExtra("partials"); // test: "b|blu|bluey", spread over the talk
                 if (talkMs > 0) {
                     timing("button down (test, talking " + talkMs + " ms)");
+                    lastEarly = "";
+                    ResultsActivity.earlyForget();
+                    if (earlyLookupOn()) ResultsActivity.warmConnection();
+                    if (partials != null) {
+                        String[] parts = partials.split("\\|");
+                        for (int i = 0; i < parts.length; i++) {
+                            final String part = parts[i];
+                            main.postDelayed(new Runnable() {
+                                @Override public void run() { onPartialWords(part); }
+                            }, (long) talkMs * (i + 1) / (parts.length + 1));
+                        }
+                    }
                     maybeGetTiviMateReady();
                     main.postDelayed(new Runnable() {
                         @Override public void run() { handleResult(heard); }
@@ -225,6 +242,9 @@ public class VoiceService extends Service {
         main.removeCallbacksAndMessages(null);
         pressAtMs = System.currentTimeMillis();
         timing("button down");
+        lastEarly = "";
+        ResultsActivity.earlyForget();
+        if (earlyLookupOn()) ResultsActivity.warmConnection();
         maybeGetTiviMateReady();
 
         bar.showListening();
@@ -280,6 +300,23 @@ public class VoiceService extends Service {
         } catch (RuntimeException e) {
             Log.w(TAG, "could not get TiviMate ready early", e);
         }
+    }
+
+    /** The hidden experiment: look up the pick-list while the user is still talking (pref "early_lookup", off). */
+    private boolean earlyLookupOn() {
+        if (!getSharedPreferences("voice_search", MODE_PRIVATE).getBoolean("early_lookup", false)) return false;
+        Targets.Target t = testTarget != null ? testTarget : ChooserActivity.current(this);
+        return t != null && t.mode == Targets.Mode.PICK_LIST;
+    }
+
+    private String lastEarly = "";
+
+    private void onPartialWords(String partial) {
+        if (partial == null || !earlyLookupOn()) return;
+        String cleaned = QueryCleaner.clean(partial, false);
+        if (cleaned.isEmpty() || cleaned.equals(lastEarly)) return;
+        lastEarly = cleaned;
+        ResultsActivity.earlyLookup(cleaned);
     }
 
     private void onButtonUp() {
@@ -379,7 +416,8 @@ public class VoiceService extends Service {
 
         // The app to search in: the one named ("... on Stremio") if saying names is on and the app is
         // installed, else the default. A named app that isn't installed is said so in the bar.
-        Targets.Target target = ChooserActivity.current(this);
+        Targets.Target target = testTarget != null ? testTarget : ChooserActivity.current(this);
+        testTarget = null;
         String note = null;
         Targets.Target openOnly = null; // a named app with no search: it is opened, nothing is searched
         Targets.Target named = ChooserActivity.appNamesEnabled(this) ? Targets.named(heard) : null;
@@ -616,6 +654,7 @@ public class VoiceService extends Service {
         public void onPartialResults(Bundle partialResults) {
             ArrayList<String> p = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
             Log.i(TAG, "recogniser: partial " + p);
+            if (p != null && !p.isEmpty()) onPartialWords(p.get(0));
         }
 
         @Override
