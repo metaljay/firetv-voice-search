@@ -174,3 +174,7 @@ This is made and looked after in spare time. If it's useful to you, you can [buy
 ## Licence
 
 MIT, see [LICENSE](LICENSE). The microphone icon shape is from Google's Material Icons (Apache 2.0). The QR code on the problem-report screen is drawn by [Project Nayuki's QR Code generator library](https://www.nayuki.io/page/qr-code-generator-library) (Java, MIT licence), included unchanged in `app/src/io/nayuki/qrcodegen/` with its licence headers. Stremio, Nuvio, WuPlay, TiviMate, SmartTube, YouTube, Netflix, Alexa and Fire TV are trademarks of their owners.
+
+## A note for Amazon and app makers
+
+This is an unofficial hobby project, made so a family can find shows by voice in the apps they already use. It isn't connected with or endorsed by Amazon or by any of the apps it opens. If you're from Amazon or one of those apps and you'd like something changed, or this project taken down, please [open an issue](https://github.com/metaljay/firetv-voice-search/issues) and I'll respond promptly and happily.
