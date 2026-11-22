@@ -185,14 +185,34 @@ public class ChooserActivity extends Activity {
         View focus = null;
 
         rows.addView(namesRow());
-        for (final Targets.Target t : Targets.ALL) {
+        // The apps sit two to a line, so all of them (and the buttons below) fit without scrolling.
+        LinearLayout pair = null;
+        for (int i = 0; i < Targets.ALL.length; i++) {
+            final Targets.Target t = Targets.ALL[i];
             boolean installed = isInstalled(this, t.packageName);
             boolean selected = t == current;
             View row = row(t, installed, selected);
-            rows.addView(row);
+            if (i % 2 == 0) {
+                pair = new LinearLayout(this);
+                pair.setOrientation(LinearLayout.HORIZONTAL);
+                pair.setBaselineAligned(false);
+                LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                plp.bottomMargin = dp(6);
+                rows.addView(pair, plp);
+            } else {
+                ((LinearLayout.LayoutParams) row.getLayoutParams()).leftMargin = dp(10);
+            }
+            pair.addView(row);
             if (installed && (t.id.equals(focusId) || (focusId == null && selected))) focus = row;
         }
-        if (focus == null && rows.getChildCount() > 1) focus = rows.getChildAt(1);
+        if (Targets.ALL.length % 2 == 1) { // an empty half keeps the last app the same width as the others
+            View gap = new View(this);
+            LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(0, 1, 1f);
+            glp.leftMargin = dp(10);
+            pair.addView(gap, glp);
+        }
+        if (focus == null && rows.getChildCount() > 1) focus = rows.getChildAt(1); // the first app line
         if (focus != null) focus.requestFocus();
 
         saved.setText(current == null ? "Install Stremio, Nuvio, WuPlay, TiviMate or SmartTube to use voice search."
@@ -203,27 +223,25 @@ public class ChooserActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(28), dp(5), dp(28), dp(5)); // tight, so more rows fit; the screen scrolls for the rest
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(6);
-        row.setLayoutParams(lp);
+        row.setPadding(dp(16), dp(6), dp(16), dp(6));
+        // Half the width each (the caller puts two in a line); as tall as the taller of the two.
+        row.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
         final GradientDrawable bg = new GradientDrawable();
         bg.setColor(CARD);
         bg.setCornerRadius(dp(16));
         row.setBackground(bg);
 
-        TextView mark = text(selected ? "✓" : "", 28, ACCENT);
+        TextView mark = text(selected ? "✓" : "", 26, ACCENT);
         mark.setTypeface(Typeface.DEFAULT_BOLD);
-        mark.setWidth(dp(56));
+        mark.setWidth(dp(36));
         row.addView(mark);
 
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
-        words.addView(text(t.name, 24, Color.WHITE));
-        words.addView(text(installed ? t.description : "Not installed", 16, GREY));
-        row.addView(words);
+        words.addView(text(t.name, 22, Color.WHITE));
+        words.addView(text(installed ? t.description : "Not installed", 14, GREY));
+        row.addView(words, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         if (!installed) {
             row.setAlpha(0.4f);
