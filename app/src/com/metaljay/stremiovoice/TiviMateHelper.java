@@ -59,6 +59,8 @@ public class TiviMateHelper extends AccessibilityService {
     /** The menu counts as open once the same item has kept the focus over two looks this far apart. */
     private static final long MENU_STABLE_MS = 150;
     private static final long TICK_MS = 150;
+    /** A menu that had the focus a moment ago is not backed out of: its focus flickers while it slides in. */
+    private static final long MENU_FLICKER_MS = 500;
     private static final long CHOOSE_POLL_MS = 100;
     /** The cover card goes away by itself after this long. */
     private static final long COVER_CAP_MS = 6000;
@@ -78,6 +80,10 @@ public class TiviMateHelper extends AccessibilityService {
     private boolean ready = false;   // getting ready has reached its stopping point (this search)
     private boolean ticking = false;
     private long lastNoRootLog = 0;
+    private long lastMenuSeen = 0;  // the last time the menu had the focus
+    private String sig = "";         // a short fingerprint of what TiviMate's screen looks like now
+    private long sigSince = 0;       // since when it has looked like that
+    private String sigAtBack = "";   // what it looked like when the last Back was pressed
     private long lastChangeMs = 0;   // when TiviMate's window last changed
     private int chooseToken = 0;     // tells a newer choosing from an older one
     private int coverId = -1;        // the search the cover card is for
@@ -224,6 +230,7 @@ public class TiviMateHelper extends AccessibilityService {
             return;
         }
         sawTiviMate = true;
+        noteScreen(root, System.currentTimeMillis());
 
         // 1. A search box is showing.
         AccessibilityNodeInfo box = findSearchBox(root);
@@ -268,6 +275,7 @@ public class TiviMateHelper extends AccessibilityService {
         // that screen takes a moment to appear, and Back would undo the click.
         if (now - lastClick < SETTLE_AFTER_CLICK_MS) return;
         if (menuSince != 0) return; // the menu is opening: wait for it to settle
+        if (now - lastMenuSeen < MENU_FLICKER_MS) return; // the focus just flicked off the menu: it is still sliding
         if (backs >= MAX_BACKS) {
             Log.w(TAG, "TiviMate helper: no Search screen after " + MAX_BACKS + " Backs, giving up");
             PendingSearch.clear(p.id);
@@ -275,13 +283,32 @@ public class TiviMateHelper extends AccessibilityService {
             return;
         }
         long sinceBack = now - lastBack;
-        boolean changedAndStill = lastChangeMs > lastBack && now - lastChangeMs >= QUIET_BEFORE_JUDGING_MS;
+        // The last Back has had its effect once the screen looks different from before it and has
+        // stayed that way for a moment (TiviMate's window keeps sending events while a channel plays
+        // or a menu slides, so the events alone are no good for this).
+        boolean changedAndStill = !sig.equals(sigAtBack) && now - sigSince >= QUIET_BEFORE_JUDGING_MS;
         if (sinceBack >= MIN_BACK_GAP_MS && (backs == 0 || changedAndStill || sinceBack >= BACK_GAP_MS)) {
             lastBack = now;
+            sigAtBack = sig;
             backs++;
             VoiceService.timing("Back " + backs);
             Log.i(TAG, "TiviMate helper: Back " + backs + " of " + MAX_BACKS);
             performGlobalAction(GLOBAL_ACTION_BACK);
+        }
+    }
+
+    /** Remembers how TiviMate's screen looks (what has the focus, how much is on it) and since when. */
+    private void noteScreen(AccessibilityNodeInfo root, long now) {
+        String s = root.getChildCount() + "|";
+        AccessibilityNodeInfo f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if (f != null) {
+            Rect r = new Rect();
+            f.getBoundsInScreen(r);
+            s += r.toShortString() + "|" + f.getClassName();
+        }
+        if (!s.equals(sig)) {
+            sig = s;
+            sigSince = now;
         }
     }
 
@@ -299,6 +326,7 @@ public class TiviMateHelper extends AccessibilityService {
      */
     private boolean menuIsSettled(AccessibilityNodeInfo root, long now) {
         String key = menuFocusKey(root);
+        if (key != null) lastMenuSeen = now;
         if (key == null) {
             menuSince = 0;
             menuKey = null;
