@@ -315,12 +315,15 @@ public class VoiceService extends Service {
         // installed, else the default. A named app that isn't installed is said so in the bar.
         Targets.Target target = ChooserActivity.current(this);
         String note = null;
+        Targets.Target openOnly = null; // a named app with no search: it is opened, nothing is searched
         Targets.Target named = ChooserActivity.appNamesEnabled(this) ? Targets.named(heard) : null;
         if (named != null) {
-            if (named.mode == Targets.Mode.OPEN_ONLY) {
-                Log.i(TAG, "named " + named.name + " has no search; using the default for now");
-            } else if (ChooserActivity.isInstalled(this, named.packageName)) {
-                target = named;
+            if (ChooserActivity.isInstalled(this, named.packageName)) {
+                if (named.mode == Targets.Mode.OPEN_ONLY) {
+                    openOnly = named;
+                } else {
+                    target = named;
+                }
                 Log.i(TAG, "app named: " + named.name);
             } else {
                 note = named.name + " isn't installed" + (target == null ? "" : ", searching in " + target.name);
@@ -341,6 +344,9 @@ public class VoiceService extends Service {
         if (QueryCleaner.isSettingsRequest(words)) {
             openSettings();
             bar.hide();
+        } else if (openOnly != null) {
+            bar.showMessage(openApp(openOnly) ? openOnly.name + " has no search, opened it for you"
+                    : "Couldn't open " + openOnly.name);
         } else {
             Targets.Target opened = openTarget(target, words, wantChannel);
             if (note != null && opened != null) {
@@ -378,6 +384,25 @@ public class VoiceService extends Service {
             Log.i(TAG, "opened settings");
         } catch (RuntimeException e) {
             Log.e(TAG, "could not open settings", e);
+        }
+    }
+
+    /** Opens an app on its home screen (for apps with no search). False if it couldn't be opened. */
+    private boolean openApp(Targets.Target app) {
+        Intent open = getPackageManager().getLeanbackLaunchIntentForPackage(app.packageName);
+        if (open == null) open = getPackageManager().getLaunchIntentForPackage(app.packageName);
+        if (open == null) {
+            Log.w(TAG, "no launcher entry for " + app.name);
+            return false;
+        }
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(open);
+            Log.i(TAG, "opened " + app.name + " (no search)");
+            return true;
+        } catch (RuntimeException e) {
+            Log.e(TAG, "could not open " + app.name, e);
+            return false;
         }
     }
 
