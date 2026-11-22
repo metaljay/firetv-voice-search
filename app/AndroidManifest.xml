@@ -13,6 +13,9 @@
         android:targetSdkVersion="29" />
 
     <uses-permission android:name="com.amazon.vizzini.SPEECH_RECOGNIZER" />
+    <!-- Opens Amazon's own search results screen. Platform "signature|privileged": the add-on's
+         system whitelist (privapp-permissions-...xml) must list it too, or the stick won't boot. -->
+    <uses-permission android:name="com.amazon.tv.launcher.permission.SHOW_SEARCH_RESULTS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

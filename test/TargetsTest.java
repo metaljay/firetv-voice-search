@@ -102,7 +102,7 @@ public class TargetsTest {
         check("named: null", null, Targets.named(null));
 
         boolean order = Arrays.equals(Targets.ALL,
-                new Target[] {Targets.STREMIO, Targets.NUVIO, Targets.WUPLAY, Targets.TIVIMATE, Targets.SMARTTUBE});
+                new Target[] {Targets.STREMIO, Targets.NUVIO, Targets.WUPLAY, Targets.TIVIMATE, Targets.SMARTTUBE, Targets.AMAZON});
         if (!order) failures++;
         System.out.println((order ? "PASS " : "FAIL ") + "ALL order = settings order, YouTube not in it yet");
 
@@ -142,6 +142,19 @@ public class TargetsTest {
                 Targets.choose(null, installed(Targets.SMARTTUBE.packageName)));
         check("nothing saved, Stremio and SmartTube (Stremio first)", Targets.STREMIO,
                 Targets.choose(null, installed(stremio, Targets.SMARTTUBE.packageName)));
+
+        String launcher = Targets.AMAZON.packageName;
+        check("saved Amazon search, launcher present", Targets.AMAZON,
+                Targets.choose("amazon", installed(stremio, launcher)));
+        check("nothing saved, only the launcher (Amazon is never the automatic pick)", null,
+                Targets.choose(null, installed(launcher)));
+        check("nothing saved, Nuvio and the launcher", Targets.NUVIO,
+                Targets.choose(null, installed(nuvio, launcher)));
+        check("named: bluey on amazon search", Targets.AMAZON, Targets.named("bluey on amazon search"));
+        boolean amz = Targets.AMAZON.mode == Targets.Mode.AMAZON_SEARCH
+                && "com.amazon.tv.launcher".equals(launcher) && "amazon".equals(Targets.AMAZON.id);
+        if (!amz) failures++;
+        System.out.println((amz ? "PASS " : "FAIL ") + "Amazon search entry");
 
         System.out.println(failures == 0 ? "All target cases pass." : failures + " target case(s) FAILED.");
         System.exit(failures == 0 ? 0 : 1);

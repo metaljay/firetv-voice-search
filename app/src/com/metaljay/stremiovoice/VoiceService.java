@@ -62,6 +62,9 @@ public class VoiceService extends Service {
     private static final long MAX_HOLD_MS = 20000;
     /** How long the bar stays up after the chosen app has been asked to open. */
     private static final long BAR_LINGER_MS = 3000;
+    /** Amazon's own search results screen (in the home-screen app) and how it is asked for. */
+    private static final ComponentName AMAZON_RESULTS = new ComponentName(
+            "com.amazon.tv.launcher", "com.amazon.tv.launcher.deeplink.activity.SearchResultsDeepLinkActivityDI");
     /** TiviMate's main screen: its only screen another app may open. */
     private static final String TIVIMATE_MAIN = "ar.tvplayer.tv.ui.MainActivity";
     /** How long the next press belongs to Alexa after "Alexa" was said (the script's window is the same). */
@@ -330,7 +333,7 @@ public class VoiceService extends Service {
         if (named != null) {
             if (ChooserActivity.isInstalled(this, named.packageName)) {
                 if (named.mode == Targets.Mode.OPEN_ONLY) {
-                    openOnly = named;
+                    openOnly = named; // goes to Amazon's results below, or is opened if that fails
                 } else {
                     target = named;
                 }
@@ -355,8 +358,13 @@ public class VoiceService extends Service {
             openSettings();
             bar.hide();
         } else if (openOnly != null) {
-            bar.showMessage(openApp(openOnly) ? openOnly.name + " has no search, opened it for you"
-                    : "Couldn't open " + openOnly.name);
+            if (openAmazonResults(words)) {
+                Log.i(TAG, "opened Amazon search for \"" + words + "\" (" + openOnly.name + " has no search)");
+                bar.showMessage(openOnly.name + " has no search, showing Amazon's results");
+            } else {
+                bar.showMessage(openApp(openOnly) ? openOnly.name + " has no search, opened it for you"
+                        : "Couldn't open " + openOnly.name);
+            }
         } else {
             Targets.Target opened = openTarget(target, words, wantChannel);
             if (note != null && opened != null) {
@@ -378,8 +386,8 @@ public class VoiceService extends Service {
     private void showTargetResult(Targets.Target target) {
         if (target == null) {
             bar.showMessage("No app to search in");
-        } else if (target.mode == Targets.Mode.PICK_LIST) {
-            bar.hide(); // the pick-list shows its own "Searching for …"
+        } else if (target.mode == Targets.Mode.PICK_LIST || target.mode == Targets.Mode.AMAZON_SEARCH) {
+            bar.hide(); // the pick-list and Amazon's screen show their own "Searching for …"
         } else {
             bar.showSearching();
         }
@@ -435,6 +443,25 @@ public class VoiceService extends Service {
         }, showMs);
     }
 
+    /**
+     * Opens Amazon's own results screen for the words, from any screen. It needs the platform
+     * permission SHOW_SEARCH_RESULTS (on the add-on's system whitelist); false if Android refuses.
+     * The extras are the ones its search loader reads: "term" (what to search), "text" (what the
+     * screen shows) and "source" (one of its SearchSource names).
+     */
+    private boolean openAmazonResults(String words) {
+        Intent open = new Intent().setComponent(AMAZON_RESULTS)
+                .putExtra("term", words).putExtra("text", words).putExtra("source", "TEXT")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(open);
+            return true;
+        } catch (RuntimeException e) {
+            Log.e(TAG, "could not open Amazon's search results", e);
+            return false;
+        }
+    }
+
     /** Opens an app on its home screen (for apps with no search). False if it couldn't be opened. */
     private boolean openApp(Targets.Target app) {
         Intent open = getPackageManager().getLeanbackLaunchIntentForPackage(app.packageName);
@@ -473,6 +500,10 @@ public class VoiceService extends Service {
                 ChooserActivity.publishActiveTarget(this, target);
                 later.postDelayed(republishDefault, BY_NAME_HELPER_MS);
             }
+        } else if (target.mode == Targets.Mode.AMAZON_SEARCH) {
+            if (!openAmazonResults(words)) return null;
+            Log.i(TAG, "opened Amazon search for \"" + words + "\"");
+            return target;
         } else if (target.mode == Targets.Mode.APP_SEARCH) {
             Uri uri = Uri.parse(target.searchLink + Uri.encode(words));
             open = new Intent(Intent.ACTION_VIEW, uri).setPackage(target.packageName);

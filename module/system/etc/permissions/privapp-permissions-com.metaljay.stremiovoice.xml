@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tells the system our app may hold Alexa's speech-to-text permission.
+<!-- Tells the system our app may hold Alexa's speech-to-text permission, and the one that opens
+     Amazon's own search results screen.
      Without this entry a system app asking for a privileged permission stops the device booting. -->
 <permissions>
     <privapp-permissions package="com.metaljay.stremiovoice">
         <permission name="com.amazon.vizzini.SPEECH_RECOGNIZER" />
+        <permission name="com.amazon.tv.launcher.permission.SHOW_SEARCH_RESULTS" />
     </privapp-permissions>
 </permissions>

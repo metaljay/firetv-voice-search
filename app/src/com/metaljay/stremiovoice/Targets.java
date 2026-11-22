@@ -32,6 +32,8 @@ public final class Targets {
         TYPE_IN_APP,
         /** The app has no search: it can only be opened on its home screen. */
         OPEN_ONLY,
+        /** Amazon's own results screen, which lists matches from all the user's apps. */
+        AMAZON_SEARCH,
     }
 
     public static final class Target {
@@ -85,6 +87,16 @@ public final class Targets {
             "smarttube", "smart tube");
 
     /**
+     * Amazon's own search results screen (in the home-screen app). Needs the platform permission
+     * SHOW_SEARCH_RESULTS, which is on the add-on's system whitelist. Never the automatic fallback:
+     * it is there only when chosen, or when a no-search app is named.
+     */
+    public static final Target AMAZON = new Target(
+            "amazon", "Amazon search", "com.amazon.tv.launcher", Mode.AMAZON_SEARCH,
+            "Amazon's own results screen: matches from all your apps", null,
+            "amazon search");
+
+    /**
      * Amazon's own YouTube app. Its link opens on "who's watching" first; until the stick test
      * shows the search survives that, it is not in ALL (so not offered in settings) but can be named.
      */
@@ -114,7 +126,7 @@ public final class Targets {
             "amazon prime video", "prime video", "amazon prime", "amazon");
 
     /** In order of preference when nothing has been chosen. */
-    public static final Target[] ALL = {STREMIO, NUVIO, WUPLAY, TIVIMATE, SMARTTUBE};
+    public static final Target[] ALL = {STREMIO, NUVIO, WUPLAY, TIVIMATE, SMARTTUBE, AMAZON};
 
     /** Apps that can be named but have no search: they are only opened. Never the default. */
     public static final Target[] NO_SEARCH = {NETFLIX, DISNEY, IPLAYER, CHANNEL4, MY5, PRIME};
@@ -190,6 +202,7 @@ public final class Targets {
         Target saved = byId(savedId);
         if (saved != null && installedPackages.contains(saved.packageName)) return saved;
         for (Target t : ALL) {
+            if (t.mode == Mode.AMAZON_SEARCH) continue; // only when chosen, never by default
             if (installedPackages.contains(t.packageName)) return t;
         }
         return null;
