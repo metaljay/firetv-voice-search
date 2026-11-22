@@ -242,6 +242,7 @@ public class VoiceService extends Service {
         main.removeCallbacksAndMessages(null);
         pressAtMs = System.currentTimeMillis();
         timing("button down");
+        testTarget = null; // a test hook's pretend default lasts for one test search only
         lastEarly = "";
         ResultsActivity.earlyForget();
         if (earlyLookupOn()) ResultsActivity.warmConnection();

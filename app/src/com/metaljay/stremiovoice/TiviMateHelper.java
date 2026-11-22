@@ -135,14 +135,21 @@ public class TiviMateHelper extends AccessibilityService {
         }
     }
 
-    /** A playing channel's screen is one full-screen view with no text and nothing inside (measured on the stick). */
+    /**
+     * A channel is playing when a full-screen view (TiviMate's video layer: one big clickable
+     * ViewGroup) is a direct child of the screen's root. It is the only thing on the screen while
+     * the channel plays alone, and it stays there, behind the info banner or the channel list, while
+     * those show. The menu, guide and search screens have no such view (measured on the stick).
+     */
     private static boolean isPlayingScreen(AccessibilityNodeInfo root) {
-        if (root.getChildCount() != 1) return false;
-        AccessibilityNodeInfo v = root.getChild(0);
-        if (v == null || v.getChildCount() != 0 || v.getText() != null) return false;
         Rect r = new Rect();
-        v.getBoundsInScreen(r);
-        return r.width() >= 1800 && r.height() >= 1000;
+        for (int i = 0; i < root.getChildCount(); i++) {
+            AccessibilityNodeInfo v = root.getChild(i);
+            if (v == null || !v.isClickable() || !String.valueOf(v.getClassName()).endsWith("ViewGroup")) continue;
+            v.getBoundsInScreen(r);
+            if (r.width() >= 1800 && r.height() >= 1000) return true;
+        }
+        return false;
     }
 
     @Override
@@ -231,6 +238,15 @@ public class TiviMateHelper extends AccessibilityService {
         }
         sawTiviMate = true;
         noteScreen(root, System.currentTimeMillis());
+
+        // "When nothing is playing": a channel is playing (alone, or with its banner or list over it):
+        // leave it alone. Nothing is pressed; the words, if they come, start from here.
+        if (gettingReady && !TiviMatePrewarm.ALWAYS.equals(ChooserActivity.tivimatePrewarm(this)) && isPlayingScreen(root)) {
+            PendingSearch.dropGettingReady();
+            Log.i(TAG, "TiviMate helper: a channel is playing, leaving it alone while the user talks");
+            VoiceService.timing("channel playing: not getting ready");
+            return;
+        }
 
         // 1. A search box is showing.
         AccessibilityNodeInfo box = findSearchBox(root);
@@ -421,8 +437,10 @@ public class TiviMateHelper extends AccessibilityService {
                         hideCover();
                         return;
                     }
-                    // A newer search is waiting: its own fill-in comes first.
-                    if (PendingSearch.current(now, MAX_AGE_MS) != null) return;
+                    // A newer search that already has its words takes over. One that is only getting
+                    // ready (a second press) doesn't: this search carries on under its card.
+                    PendingSearch.Item newer = PendingSearch.current(now, MAX_AGE_MS);
+                    if (newer != null && newer.words != null) return;
                     logNewRows(root);
                     boolean capped = now - filledAt >= TiviMatePrewarm.CAP_MS;
                     if (TiviMatePrewarm.readyToChoose(now - filledAt, now - lastChangeMs, movieOrShowCards(root))) {
@@ -530,17 +548,28 @@ public class TiviMateHelper extends AccessibilityService {
         if (pick < 0 && nothingFound != null) {
             // No results. The focus still has to leave the search box: left there, Amazon's
             // on-screen keyboard pops up (seen on the stick), so it goes to the message.
+            // False is also what Android answers when the card already has the focus.
             nothingFound.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+            nothingFound.refresh();
+            if (!nothingFound.isFocused()) return false; // not landed: look again
             VoiceService.timing("best match focused (nothing found)");
             Log.i(TAG, "TiviMate helper: no results");
             return true;
         }
         if (pick < 0) return false;
         ResultChooser.Card c = cards.get(pick);
-        boolean ok = nodes.get(pick).performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+        AccessibilityNodeInfo node = nodes.get(pick);
+        node.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+        node.refresh();
+        // The action answers false when the card already had the focus, so ask the card itself.
+        boolean ok = node.isFocused();
+        if (!ok) {
+            Log.i(TAG, "TiviMate helper: focus on " + c.title + " did not land, trying again");
+            return false; // the card may still be settling: the caller looks again until the cap
+        }
         VoiceService.timing("best match focused");
         Log.i(TAG, "TiviMate helper: focused " + (c.row == null ? "(no row header)" : c.row) + ": "
-                + c.title + " (" + ok + ")");
+                + c.title + " (true)");
         return true;
     }
 
