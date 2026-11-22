@@ -38,6 +38,9 @@ public class ChooserActivity extends Activity {
     // Whether saying "on <app>" picks the app (default on). Off: the name is dropped and the default is used.
     private static final String KEY_APP_NAMES = "app_names";
 
+    // TiviMate only: get it ready while the user talks. "idle" (default) or "always", see TiviMatePrewarm.
+    static final String KEY_TIVIMATE_PREWARM = "tivimate_prewarm";
+
     static final int BACKGROUND = 0xFF0B0F1A;
     static final int CARD = 0xFF161D2E;
     static final int ACCENT = 0xFF00CAFF;
@@ -65,6 +68,15 @@ public class ChooserActivity extends Activity {
 
     static void setAppNamesEnabled(Context context, boolean on) {
         context.getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_APP_NAMES, on).commit();
+    }
+
+    static String tivimatePrewarm(Context context) {
+        return TiviMatePrewarm.normalise(
+                context.getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_TIVIMATE_PREWARM, null));
+    }
+
+    static void setTivimatePrewarm(Context context, String mode) {
+        context.getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_TIVIMATE_PREWARM, mode).commit();
     }
 
     /** Writes the app the next search would use, for the add-on's script. Call when it may have changed. */
@@ -213,6 +225,7 @@ public class ChooserActivity extends Activity {
             glp.leftMargin = dp(10);
             pair.addView(gap, glp);
         }
+        if (current == Targets.TIVIMATE) rows.addView(prewarmRow()); // TiviMate's own setting
         if (focus == null && rows.getChildCount() > 1) focus = rows.getChildAt(1); // the first app line
         if (focus != null) focus.requestFocus();
 
@@ -312,6 +325,56 @@ public class ChooserActivity extends Activity {
             }
         });
         return row;
+    }
+
+    /** TiviMate only: "Get TiviMate ready while I talk", When nothing is playing / Always. A press flips it. */
+    private View prewarmRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(28), dp(5), dp(28), dp(5));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.bottomMargin = dp(6);
+        row.setLayoutParams(lp);
+
+        final GradientDrawable bg = new GradientDrawable();
+        bg.setColor(CARD);
+        bg.setCornerRadius(dp(16));
+        row.setBackground(bg);
+
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.addView(text("Get TiviMate ready while I talk", 24, Color.WHITE));
+        words.addView(text("Always leaves a playing channel as soon as you press the button", 16, GREY));
+        row.addView(words, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        final TextView value = text(prewarmLabel(tivimatePrewarm(this)), 24, ACCENT);
+        value.setTypeface(Typeface.DEFAULT_BOLD);
+        row.addView(value);
+
+        row.setFocusable(true);
+        row.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                bg.setStroke(hasFocus ? dp(4) : 0, Color.WHITE);
+            }
+        });
+        row.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String now = TiviMatePrewarm.ALWAYS.equals(tivimatePrewarm(ChooserActivity.this))
+                        ? TiviMatePrewarm.IDLE : TiviMatePrewarm.ALWAYS;
+                setTivimatePrewarm(ChooserActivity.this, now);
+                value.setText(prewarmLabel(now));
+                saved.setText("Saved \u2713  TiviMate gets ready while you talk: " + prewarmLabel(now) + ".");
+            }
+        });
+        return row;
+    }
+
+    private static String prewarmLabel(String mode) {
+        return TiviMatePrewarm.ALWAYS.equals(mode) ? "Always" : "When nothing is playing";
     }
 
     /** "Done": closes the screen, back to where it was opened from (Home, from the tile). */

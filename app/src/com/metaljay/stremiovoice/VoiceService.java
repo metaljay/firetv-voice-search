@@ -162,10 +162,21 @@ public class VoiceService extends Service {
             String words = intent.getStringExtra(EXTRA_WORDS);
             Log.i(TAG, "test search: \"" + words + "\"");
             if (words != null) {
-                ArrayList<String> heard = new ArrayList<>();
+                final ArrayList<String> heard = new ArrayList<>();
                 heard.add(words);
                 pressAtMs = System.currentTimeMillis(); // so TIMING lines of a test search count from here
-                handleResult(heard);
+                // Test hook (needs root to send): "--ei talk_ms N" acts out a button press that lasts N ms
+                // before the words arrive, so getting TiviMate ready can be timed without the remote.
+                int talkMs = intent.getIntExtra("talk_ms", 0);
+                if (talkMs > 0) {
+                    timing("button down (test, talking " + talkMs + " ms)");
+                    maybeGetTiviMateReady();
+                    main.postDelayed(new Runnable() {
+                        @Override public void run() { handleResult(heard); }
+                    }, talkMs);
+                } else {
+                    handleResult(heard);
+                }
             }
         }
         return START_STICKY;
@@ -214,6 +225,7 @@ public class VoiceService extends Service {
         main.removeCallbacksAndMessages(null);
         pressAtMs = System.currentTimeMillis();
         timing("button down");
+        maybeGetTiviMateReady();
 
         bar.showListening();
         main.postDelayed(new Runnable() {
@@ -240,6 +252,33 @@ public class VoiceService extends Service {
         } catch (RuntimeException e) {
             Log.e(TAG, "could not start listening", e);
             endSession(true, "Voice service not available");
+        }
+    }
+
+    /**
+     * TiviMate is the default app: get it to its menu while the user is still talking, if the setting
+     * and the screen in front allow it (see TiviMatePrewarm). Never types and never clicks; the words
+     * fill the same search in later.
+     */
+    private void maybeGetTiviMateReady() {
+        try {
+            if (ChooserActivity.current(this) != Targets.TIVIMATE || !TiviMateHelper.connected()) return;
+            String front = TiviMateHelper.frontPackage();
+            boolean playing = Targets.TIVIMATE.packageName.equals(front) && TiviMateHelper.tivimatePlaying();
+            if (!TiviMatePrewarm.shouldPrewarm(ChooserActivity.tivimatePrewarm(this), front, playing)) {
+                Log.i(TAG, "TiviMate not got ready early (front: " + front + ", playing: " + playing + ")");
+                return;
+            }
+            PendingSearch.setGettingReady(System.currentTimeMillis());
+            Log.i(TAG, "getting TiviMate ready while talking (front: " + front + ")");
+            if (!Targets.TIVIMATE.packageName.equals(front)) {
+                startActivity(new Intent().setComponent(new ComponentName(Targets.TIVIMATE.packageName, TIVIMATE_MAIN))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                timing("TiviMate opened (early)");
+            }
+            TiviMateHelper.kick();
+        } catch (RuntimeException e) {
+            Log.w(TAG, "could not get TiviMate ready early", e);
         }
     }
 
@@ -277,6 +316,7 @@ public class VoiceService extends Service {
      * hiding, so a press that went nowhere is not silent; without one, the bar hides at once.
      */
     private void endSession(boolean cancel, String message) {
+        PendingSearch.dropGettingReady(); // TiviMate stays where it got to
         active = false;
         released = false;
         main.removeCallbacksAndMessages(null);
@@ -368,9 +408,11 @@ public class VoiceService extends Service {
         final int mine = session;
         main.removeCallbacksAndMessages(null);
         if (QueryCleaner.isSettingsRequest(words)) {
+            PendingSearch.dropGettingReady();
             openSettings();
             bar.hide();
         } else if (openOnly != null) {
+            PendingSearch.dropGettingReady();
             if (openAmazonResults(words)) {
                 Log.i(TAG, "opened Amazon search for \"" + words + "\" (" + openOnly.name + " has no search)");
                 bar.showMessage(openOnly.name + " can't be searched from here, showing Amazon's results");
@@ -379,6 +421,7 @@ public class VoiceService extends Service {
                         : "Couldn't open " + openOnly.name);
             }
         } else {
+            if (target != Targets.TIVIMATE) PendingSearch.dropGettingReady(); // "... on stremio", etc.
             Targets.Target opened = openTarget(target, words, wantChannel);
             if (note != null && opened != null) {
                 bar.showMessage(note);
@@ -401,6 +444,8 @@ public class VoiceService extends Service {
             bar.showMessage("No app to search in");
         } else if (target.mode == Targets.Mode.PICK_LIST || target.mode == Targets.Mode.AMAZON_SEARCH) {
             bar.hide(); // the pick-list and Amazon's screen show their own "Searching for …"
+        } else if (target.mode == Targets.Mode.TYPE_IN_APP && TiviMateHelper.connected()) {
+            bar.hide(); // TiviMate's helper shows its own "Searching TiviMate for ..." card
         } else {
             bar.showSearching();
         }
@@ -425,6 +470,7 @@ public class VoiceService extends Service {
      * after about 15 seconds.
      */
     private void handOverToAlexa() {
+        PendingSearch.dropGettingReady();
         main.removeCallbacksAndMessages(null);
         active = false;
         released = false;
@@ -506,7 +552,7 @@ public class VoiceService extends Service {
             // No link for this app: open its main screen; the TiviMate helper (an accessibility
             // service limited to TiviMate) then takes the waiting words to its Search screen.
             open = new Intent().setComponent(new ComponentName(target.packageName, TIVIMATE_MAIN));
-            PendingSearch.set(words, System.currentTimeMillis(), wantChannel);
+            PendingSearch.fill(words, System.currentTimeMillis(), wantChannel);
             // The script keeps the TiviMate helper on only while TiviMate is the published app. If it
             // was reached by name, publish it for a minute, then put the default back.
             later.removeCallbacks(republishDefault);
