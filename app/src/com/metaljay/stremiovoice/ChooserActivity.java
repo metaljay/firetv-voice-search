@@ -139,6 +139,7 @@ public class ChooserActivity extends Activity {
         done = doneButton();
         bottom.addView(done);
         bottom.addView(updatesButton());
+        bottom.addView(supportButton());
         bottom.addView(reportButton());
 
         LinearLayout notes = new LinearLayout(this);
@@ -335,6 +336,18 @@ public class ChooserActivity extends Activity {
         return b;
     }
 
+    /** "Support": opens the screen with the Buy Me a Coffee code. */
+    private View supportButton() {
+        View b = actionButton("\u2615 Support", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(ChooserActivity.this, SupportActivity.class));
+            }
+        });
+        ((LinearLayout.LayoutParams) b.getLayoutParams()).leftMargin = dp(16);
+        return b;
+    }
+
     /** "Send a problem report": opens the report screen. */
     private View reportButton() {
         View b = actionButton("Send a problem report", new View.OnClickListener() {
@@ -350,7 +363,7 @@ public class ChooserActivity extends Activity {
     private View actionButton(String label, View.OnClickListener onClick) {
         TextView b = text(label, 22, Color.WHITE);
         b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(36), dp(12), dp(36), dp(12));
+        b.setPadding(dp(24), dp(12), dp(24), dp(12));
         final GradientDrawable bg = new GradientDrawable();
         bg.setColor(CARD);
         bg.setCornerRadius(dp(16));

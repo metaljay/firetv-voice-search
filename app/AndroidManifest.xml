@@ -77,6 +77,13 @@
             android:label="Voice Search updates"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
+        <!-- "Support Voice Search": a QR code for the Buy Me a Coffee page. Nothing is sent. -->
+        <activity
+            android:name=".SupportActivity"
+            android:exported="false"
+            android:label="Support Voice Search"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
+
         <!-- "Send a problem report": opened from the settings screen. -->
         <activity
             android:name=".ReportActivity"
