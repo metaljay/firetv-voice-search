@@ -5,13 +5,15 @@
 # 2. Installs (or updates) the small "Voice Search" tile app, which puts a
 #    tile on Amazon's home screen; that screen hides system apps like ours.
 # 3. Starts the app's service.
-# 4. Every 10 seconds:
+# 4. Every second (the app's "Alexa" hand-off, and the TiviMate helper), every 10 seconds (the rest):
 #    - points the voice button at our app while the app is alive, and hands it
 #      back to Alexa when the app is not (restarting the app);
 #    - does what the app asked for in its updates folder: install a downloaded
 #      update, go back to the kept previous version, or restart the stick;
 #    - after an update, watches the first start of the new version and goes back
 #      to the old one if the new one never runs;
+#    - when the app has asked for it (a file called "alexa" in its folder), gives the voice
+#      button to real Alexa for 15 seconds, then takes it back;
 #    - switches the app's TiviMate helper (an accessibility helper limited to TiviMate) on
 #      while TiviMate is the chosen app, and off again otherwise.
 #
@@ -341,6 +343,30 @@ helper_off_for_version_change() {
     say "TiviMate helper switched off for the version change"
 }
 
+# ---------- the "Alexa" hand-off ----------
+
+ALEXA_WINDOW=15   # seconds the voice button stays with real Alexa
+ALEXA_UNTIL=0     # when it comes back (seconds since 1970); 0 when the app has the button
+
+# The app writes "alexa" to its folder when the listener says just "Alexa". Alexa's own text input
+# can't be reached, so the next press goes to her: the diversion switch goes off now (it is read
+# live, like when the app dies) and back on once the window has passed.
+check_alexa() {
+    if [ -f "$UPD/alexa" ]; then
+        rm -f "$UPD/alexa"
+        setprop debug.alm.enable false
+        ALEXA_UNTIL=$(( $(date +%s) + ALEXA_WINDOW ))
+        say "Alexa hand-off: the voice button is Alexa's for ${ALEXA_WINDOW} s"
+    fi
+    if [ "$ALEXA_UNTIL" -gt 0 ] && [ "$(date +%s)" -ge "$ALEXA_UNTIL" ]; then
+        ALEXA_UNTIL=0
+        if pidof "$PKG" >/dev/null 2>&1; then
+            setprop debug.alm.enable true
+            say "Alexa hand-off over: the voice button is ours again"
+        fi
+    fi
+}
+
 # ---------- the tile app ----------
 
 TILE_PKG=com.metaljay.voicesearchtile
@@ -405,7 +431,8 @@ while true; do
     sync_helper
 
     if pidof "$PKG" >/dev/null 2>&1; then
-        setprop debug.alm.enable true
+        # While the button is lent to Alexa it stays hers; check_alexa takes it back.
+        [ "$ALEXA_UNTIL" -eq 0 ] && setprop debug.alm.enable true
         alive_run=$((alive_run + 1))
     else
         # App is gone: Alexa gets the button back at once, then we try to bring the app back.
@@ -428,5 +455,13 @@ while true; do
             TRIAL_ON=0
         fi
     fi
-    sleep 10
+    # Ten one-second waits instead of one ten-second wait, so the hand-off, and the helper after a
+    # by-name TiviMate search, are noticed within a second.
+    n=0
+    while [ "$n" -lt 10 ]; do
+        sleep 1
+        check_alexa
+        sync_helper
+        n=$((n + 1))
+    done
 done

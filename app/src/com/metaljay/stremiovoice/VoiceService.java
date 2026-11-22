@@ -21,6 +21,10 @@ import android.speech.SpeechRecognizer;
 import android.util.Log;
 import android.view.KeyEvent;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 /**
@@ -60,6 +64,8 @@ public class VoiceService extends Service {
     private static final long BAR_LINGER_MS = 3000;
     /** TiviMate's main screen: its only screen another app may open. */
     private static final String TIVIMATE_MAIN = "ar.tvplayer.tv.ui.MainActivity";
+    /** How long the next press belongs to Alexa after "Alexa" was said (the script's window is the same). */
+    private static final long ALEXA_WINDOW_MS = 15000;
     /** Shown when nothing usable was heard. */
     private static final String MSG_NOT_CAUGHT = "Didn't catch that. Try again";
 
@@ -310,6 +316,10 @@ public class VoiceService extends Service {
         }
         String heard = candidates.get(0);
         Log.i(TAG, "heard: \"" + heard + "\"");
+        if (QueryCleaner.isAlexaRequest(heard)) {
+            handOverToAlexa();
+            return;
+        }
 
         // The app to search in: the one named ("... on Stremio") if saying names is on and the app is
         // installed, else the default. A named app that isn't installed is said so in the bar.
@@ -385,6 +395,44 @@ public class VoiceService extends Service {
         } catch (RuntimeException e) {
             Log.e(TAG, "could not open settings", e);
         }
+    }
+
+    /**
+     * A bare "Alexa": asks the add-on's root script (through a file in the shared folder, the way
+     * update requests go) to give the voice button back to Alexa. Her text input can't be reached
+     * from here, so the next press, not this one, goes to her; the script takes the button back
+     * after about 15 seconds.
+     */
+    private void handOverToAlexa() {
+        main.removeCallbacksAndMessages(null);
+        active = false;
+        released = false;
+        final int mine = session;
+        boolean sent = false;
+        try {
+            File dir = Updater.dir(this);
+            File tmp = new File(dir, "alexa.tmp");
+            try (FileOutputStream out = new FileOutputStream(tmp)) {
+                out.write("alexa\n".getBytes(StandardCharsets.UTF_8));
+            }
+            sent = tmp.renameTo(new File(dir, "alexa"));
+        } catch (IOException | RuntimeException e) {
+            Log.e(TAG, "could not ask for the Alexa hand-off", e);
+        }
+        long showMs = BAR_LINGER_MS;
+        if (sent) {
+            Log.i(TAG, "Alexa hand-off requested");
+            bar.showMessage("Hold the button again and ask Alexa");
+            showMs = ALEXA_WINDOW_MS;
+        } else {
+            bar.showMessage("Couldn't hand over to Alexa");
+        }
+        main.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (session == mine && !active) bar.hide();
+            }
+        }, showMs);
     }
 
     /** Opens an app on its home screen (for apps with no search). False if it couldn't be opened. */
