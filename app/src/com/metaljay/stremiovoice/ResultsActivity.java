@@ -273,6 +273,7 @@ public class ResultsActivity extends Activity {
         final List<ResultRanker.Item> merged = ResultRanker.merge(words, filmList, showList);
         Log.i(VoiceService.TAG, "pick-list for \"" + words + "\": " + merged.size() + " results"
                 + (offline ? " (catalogue unreachable)" : ""));
+        if (!merged.isEmpty()) Log.i(VoiceService.TAG, "pick-list first: " + merged.get(0).name + " (" + merged.get(0).year + ")");
         main.post(new Runnable() {
             @Override
             public void run() {
