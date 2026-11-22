@@ -128,7 +128,8 @@ public class ChooserActivity extends Activity {
         rows.setOrientation(LinearLayout.VERTICAL);
         root.addView(rows);
 
-        // Bottom row: the Done button, and beside it which app has the button, and how to come back.
+        // Bottom: a row of buttons (Done, Updates, report), and under it which app has the voice
+        // button, update news and how to come back.
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.HORIZONTAL);
         bottom.setGravity(Gravity.CENTER_VERTICAL);
@@ -138,12 +139,12 @@ public class ChooserActivity extends Activity {
         done = doneButton();
         bottom.addView(done);
         bottom.addView(updatesButton());
+        bottom.addView(reportButton());
 
         LinearLayout notes = new LinearLayout(this);
         notes.setOrientation(LinearLayout.VERTICAL);
-        notes.setPadding(dp(32), 0, 0, 0);
-        bottom.addView(notes, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        notes.setPadding(0, dp(10), 0, 0);
+        root.addView(notes);
 
         // Which app has the voice button; starts with "Saved" once a choice is made.
         saved = text("", 20, ACCENT);
@@ -316,10 +317,22 @@ public class ChooserActivity extends Activity {
         return b;
     }
 
+    /** "Send a problem report": opens the report screen. */
+    private View reportButton() {
+        View b = actionButton("Send a problem report", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(ChooserActivity.this, ReportActivity.class));
+            }
+        });
+        ((LinearLayout.LayoutParams) b.getLayoutParams()).leftMargin = dp(16);
+        return b;
+    }
+
     private View actionButton(String label, View.OnClickListener onClick) {
         TextView b = text(label, 22, Color.WHITE);
         b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(48), dp(14), dp(48), dp(14));
+        b.setPadding(dp(36), dp(12), dp(36), dp(12));
         final GradientDrawable bg = new GradientDrawable();
         bg.setColor(CARD);
         bg.setCornerRadius(dp(16));

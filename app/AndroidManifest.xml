@@ -77,6 +77,14 @@
             android:label="Voice Search updates"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
+        <!-- "Send a problem report": opened from the settings screen. -->
+        <activity
+            android:name=".ReportActivity"
+            android:exported="false"
+            android:label="Send a problem report"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- The scheduled update check (about every six hours, only with a network). -->
         <service
             android:name=".UpdateJob"

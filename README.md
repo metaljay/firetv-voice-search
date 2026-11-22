@@ -49,6 +49,7 @@ Nothing else has been tested. Reports from other devices and Fire OS versions ar
 - **It relies on undocumented Fire OS behaviour.** A system update can break it.
 - **Any app on the stick can start a listening session,** because the button broadcast it listens for is not protected. The words it hears are written to the system log.
 - **For TiviMate it turns on a small accessibility helper.** Typing into another app's screen is what Android's accessibility feature is for, and there is no other way into TiviMate. The helper (`TiviMateHelper`) gets events from TiviMate only (Android filters them), and it reads nothing on screen unless TiviMate is in front. It asks for no extra permission. The add-on switches it on only while TiviMate is the app Voice Search is using, which is the one you chose, or the first installed one if you haven't chosen (it adds one entry to Android's `enabled_accessibility_services` and, if that was the only one, puts `accessibility_enabled` back to what it was) and switches it off when that changes to another app. It acts only in the 10 seconds after you speak, and does nothing the rest of the time. (If you say "on TiviMate" while another app is chosen, the helper is switched on for a minute, then off again.) Fire OS may show it in Settings, Accessibility.
+- **"Send a problem report" sends nothing by itself.** It shows a QR code; if you scan it and post the issue, the report (device facts and recent log, with the words you said) is public on this project's GitHub page under your account. See [Reporting a problem](#reporting-a-problem).
 - **With Nuvio or WuPlay, the spoken words are sent to Cinemeta** (`v3-cinemeta.strem.io`, the free catalogue Stremio and Nuvio themselves use) to find matching titles.
 - **It checks GitHub for updates** (`api.github.com`, nothing else, nothing sent about you). Switch that off any time with **Off** on the Updates screen. See [Updates](#updates).
 
@@ -146,18 +147,22 @@ The supported apps are a list in `Targets.java`. An app can be added in one of t
 
 Give each entry the `spokenNames` people may say, lower case as speech-to-text writes them ("smart tube"). Pull requests are welcome; please add a case to `test/TargetsTest.java`.
 
-## Reporting problems
+## Reporting a problem
 
-Please include the device, the full Fire OS version, the Magisk version, the module version, and the output of `logcat -s VoiceSearch VoiceSearchModule` from a failed attempt.
+1. **Easiest: the button.** Open the settings screen (the **Voice Search** tile, or say "Voice settings"), choose **Send a problem report**, optionally type a few words about what went wrong, and choose **Show the code**. Point your phone's camera at the QR code: GitHub opens a new issue on this project's Issues page with the report filled in. You read it, can change it, and post it with **your own** GitHub account; nothing is sent from the stick. The report holds your stick model, Fire OS version, language, app version, which supported apps are installed, whether the voice switch is on, and Voice Search's recent log, **including what was said to the remote**. Addresses (IP, MAC), e-mail addresses, serial numbers and account or user names are removed. A QR code can only hold about 1,400 characters, so the report in the code is shortened: the device facts first, then the newest log lines. The address is also shown on screen if you'd rather type it.
+2. **Or open an issue yourself** on this repository's Issues page: the device, the full Fire OS version, the Magisk version, the module version, and what you did.
+3. **Last resort:** the output of `adb logcat -s VoiceSearch VoiceSearchModule` from a failed attempt.
+
+Maintainers: the report is built by `ReportBuilder` (with `Redactor`) and drawn as a QR code by `ReportActivity`. Handing it on is one method, `ReportSender.send`, which does nothing today; an automatic sender could go there without changing the screen. The repository the code points at is `ReportSender.REPORT_REPO`. `check_no_tokens.sh` fails the build if a GitHub token-like string is in any tracked file.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `build.sh` | test and build script (also runs the boot guard, `check_whitelist.sh`) |
-| `app/` | the Android app (plain Java, no libraries) |
+| `build.sh` | test and build script (also runs the boot guard `check_whitelist.sh` and the token scan `check_no_tokens.sh`) |
+| `app/` | the Android app (plain Java; the only library is the QR generator below) |
 | `tile/` | the small tile app that opens the settings screen |
-| `test/` | plain-Java tests for `QueryCleaner`, `Targets`, `ResultRanker`, `ResultChooser`, `Versions`, `UpdateSchedule`, `ReleaseNotes`, `PackageVerifier` and `AssetPicker`, plus plain-`sh` tests of the accessibility-list edits and the boot guard |
+| `test/` | plain-Java tests for `QueryCleaner`, `Targets`, `ResultRanker`, `ResultChooser`, `Versions`, `UpdateSchedule`, `ReleaseNotes`, `PackageVerifier` and `AssetPicker`, `Redactor` and `ReportBuilder`, plus plain-`sh` tests of the accessibility-list edits, the boot guard and the token scan |
 | `module/` | the Magisk module: `module.prop`, `post-fs-data.sh`, `service.sh`, `a11y_list.sh`, `uninstall.sh`, the permission whitelist |
 | `docs/` | screenshots |
 
@@ -169,4 +174,4 @@ This is made and looked after in spare time. If it's useful to you, you can [buy
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). The microphone icon shape is from Google's Material Icons (Apache 2.0). Stremio, Nuvio, WuPlay, TiviMate, SmartTube, YouTube, Netflix, Alexa and Fire TV are trademarks of their owners.
+MIT, see [LICENSE](LICENSE). The microphone icon shape is from Google's Material Icons (Apache 2.0). The QR code on the problem-report screen is drawn by [Project Nayuki's QR Code generator library](https://www.nayuki.io/page/qr-code-generator-library) (Java, MIT licence), included unchanged in `app/src/io/nayuki/qrcodegen/` with its licence headers. Stremio, Nuvio, WuPlay, TiviMate, SmartTube, YouTube, Netflix, Alexa and Fire TV are trademarks of their owners.

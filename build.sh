@@ -48,6 +48,9 @@ run_tests() {
         "$APP_SRC/com/metaljay/stremiovoice/PackageVerifier.java" \
         "$APP_SRC/com/metaljay/stremiovoice/AssetPicker.java" \
         "$APP_SRC/com/metaljay/stremiovoice/ResultChooser.java" \
+        "$APP_SRC/com/metaljay/stremiovoice/Redactor.java" \
+        "$APP_SRC/com/metaljay/stremiovoice/ReportBuilder.java" \
+        test/RedactorTest.java test/ReportBuilderTest.java \
         test/QueryCleanerTest.java test/TargetsTest.java test/ResultRankerTest.java \
         test/VersionsTest.java test/UpdateScheduleTest.java test/ReleaseNotesTest.java \
         test/PackageVerifierTest.java test/AssetPickerTest.java test/ResultChooserTest.java test/VerifyZip.java
@@ -59,10 +62,14 @@ run_tests() {
     "$JAVA" -cp build/test-classes ReleaseNotesTest
     "$JAVA" -cp build/test-classes AssetPickerTest
     "$JAVA" -cp build/test-classes ResultChooserTest
+    "$JAVA" -cp build/test-classes RedactorTest
+    "$JAVA" -cp build/test-classes ReportBuilderTest
     echo "== Accessibility-list tests (plain sh)"
     sh test/a11y_list_test.sh
     echo "== Boot guard tests (plain sh)"
     sh test/check_whitelist_test.sh
+    echo "== Token scan tests (plain sh)"
+    sh test/check_no_tokens_test.sh
     # Makes throwaway keys and signed zips in build/verifier-test/; leaves debug.keystore alone.
     "$JAVA" -cp build/test-classes PackageVerifierTest
 }
@@ -72,6 +79,9 @@ build_apk() {
     sh ./check_whitelist.sh app/AndroidManifest.xml \
         module/system/etc/permissions/privapp-permissions-com.metaljay.stremiovoice.xml \
         || { echo "The build stops here: the stick would not boot." >&2; exit 1; }
+    echo "== Token scan: no GitHub token in any tracked file"
+    sh ./check_no_tokens.sh . \
+        || { echo "The build stops here: a token must never be committed." >&2; exit 1; }
     echo "== Compile"
     rm -rf build/classes build/dex build/apk
     mkdir -p build/classes build/dex build/apk

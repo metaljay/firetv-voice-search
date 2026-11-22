@@ -27,7 +27,20 @@ SERVICE="$PKG/.VoiceService"
 TAG=VoiceSearchModule
 MODID=stremio_voice
 
-say() { log -t "$TAG" "$1"; }
+# Writes to the system log, and also keeps the last ~200 lines in a file in the app's shared
+# folder ("module.log"), which the app reads for "Send a problem report" (the app can't read
+# this script's lines from the system log). Trimmed when it passes 300 lines.
+say() {
+    log -t "$TAG" "$1"
+    [ -d "$UPD" ] || return 0
+    f="$UPD/module.log"
+    [ -f "$f" ] || { : > "$f"; own "$f"; }
+    echo "$(date '+%m-%d %H:%M:%S') $1" >> "$f"
+    n=$(wc -l < "$f")
+    if [ "${n:-0}" -gt 300 ]; then
+        tail -n 200 "$f" > "$f.tmp" && own "$f.tmp" && mv -f "$f.tmp" "$f"
+    fi
+}
 
 # ---------- updates ----------
 
