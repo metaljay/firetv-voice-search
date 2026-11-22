@@ -41,12 +41,37 @@ mf $T/m4 com.amazon.vizzini.SPEECH_RECOGNIZER com.amazon.tv.launcher.permission.
 wl $T/w4 com.amazon.vizzini.SPEECH_RECOGNIZER
 expect "one of two platform permissions missing" 1 $T/m4 $T/w4
 
-printf '<manifest>\n<uses-permission\n    android:name="com.example.PRIVATE"\n    />\n</manifest>\n' > $T/m5
+printf '<manifest package="x">\n<uses-permission\n    android:name="com.example.PRIVATE"\n    />\n</manifest>\n' > $T/m5
 wl $T/w5
 expect "tag spread over several lines is still checked" 1 $T/m5 $T/w5
 
 wl $T/w6 com.amazon.tv.launcher.permission.SHOW_SEARCH_RESULTS_EXTRA
 expect "a longer name is not a match for a shorter one" 1 $T/m2 $T/w6
+
+# Stricter parsing (review fixes)
+P=com.amazon.tv.launcher.permission.SHOW_SEARCH_RESULTS
+mf $T/m7 "$P"
+printf '<permissions><!-- <permission name="%s" /> -->\n<privapp-permissions package="x"></privapp-permissions></permissions>\n' "$P" > $T/w7
+expect "entry only inside an XML comment is not on the whitelist" 1 $T/m7 $T/w7
+
+printf '<manifest package="x">\n<!-- <uses-permission android:name="%s" /> -->\n<uses-permission android:name="android.permission.INTERNET" />\n</manifest>\n' "$P" > $T/m8
+wl $T/w8
+expect "a commented-out manifest permission is not asked for" 0 $T/m8 $T/w8
+
+printf "<manifest package='x'>\n<uses-permission android:name = '%s' />\n</manifest>\n" "$P" > $T/m9
+wl $T/w9a
+expect "single quotes and spaces around = in the manifest are still checked" 1 $T/m9 $T/w9a
+printf "<permissions><privapp-permissions package = 'x'><permission name = '%s'/></privapp-permissions></permissions>\n" "$P" > $T/w9b
+expect "single quotes and spaces around = in the whitelist are accepted" 0 $T/m9 $T/w9b
+
+printf '<permissions><privapp-permissions package="some.other.app"><permission name="%s" /></privapp-permissions></permissions>\n' "$P" > $T/w10
+expect "entry listed under another app's package does not count" 1 $T/m7 $T/w10
+
+printf '<permissions><privapp-permissions package="some.other.app"><permission name="%s" /></privapp-permissions><privapp-permissions package="x"><permission name="%s" /></privapp-permissions></permissions>\n' "other.PERM" "$P" > $T/w11
+expect "our package's block is found after another app's block" 0 $T/m7 $T/w11
+
+printf '<manifest>\n<uses-permission android:name="%s" />\n</manifest>\n' "$P" > $T/m12
+expect "a manifest with no package name is an error" 2 $T/m12 $T/w3
 
 expect "missing file is an error" 2 $T/nope $T/w1
 

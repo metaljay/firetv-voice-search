@@ -33,7 +33,8 @@ expect "prefix without a token body" 0 "$T/r"
 
 expect "this project's own tracked files" 0 "."
 outside=$(mktemp -d)
-expect "not a git folder" 2 "$outside"
+expect "not a git folder: a warning, but the build goes on" 0 "$outside"
+grep -q "not a git folder" "$ROOT/$T/out" && echo "PASS ...and it says so" || { echo "FAIL no warning printed"; fails=$((fails + 1)); }
 rmdir "$outside"
 
 [ "$fails" = 0 ] && echo "All token-scan cases pass." || { echo "$fails token-scan case(s) FAILED."; exit 1; }

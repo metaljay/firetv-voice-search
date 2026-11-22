@@ -68,6 +68,23 @@ public final class QueryCleaner {
         return s.equals("alexa");
     }
 
+    /** Takes the lead-ins off the front of already-normalised words ("put on channel 4" becomes "channel 4"). */
+    static String stripLeadIns(String s) {
+        boolean changed = true;
+        while (changed && !s.isEmpty()) {
+            changed = false;
+            for (String lead : LEAD_INS) {
+                if (s.equals(lead)) return "";
+                if (s.startsWith(lead + " ")) {
+                    s = tidy(s.substring(lead.length()));
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        return s;
+    }
+
     /** Lower case, spoken-sentence punctuation removed, spaces tidied. */
     static String normalise(String spoken) {
         String s = spoken.toLowerCase(Locale.ROOT);

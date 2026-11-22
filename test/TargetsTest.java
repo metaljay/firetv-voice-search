@@ -98,6 +98,15 @@ public class TargetsTest {
         check("named: bluey on amazon", Targets.PRIME, Targets.named("bluey on amazon"));
         check("named: watch channel 4 (no \"on\")", null, Targets.named("watch channel 4"));
         check("named: the disney channel (no \"on\")", null, Targets.named("the disney channel"));
+        // Lead-ins come off first, so "put on" / "play" never count as "on <app>" (a TiviMate household
+        // says "put on channel 5" and means the channel).
+        check("named: put on channel 4 (lead-in, not an app)", null, Targets.named("put on channel 4"));
+        check("named: put on channel 5 (lead-in, not an app)", null, Targets.named("put on channel 5"));
+        check("named: play channel 4", null, Targets.named("play channel 4"));
+        check("named: put on netflix", null, Targets.named("put on netflix"));
+        check("named: put bluey on channel 4", Targets.CHANNEL4, Targets.named("put bluey on channel 4"));
+        check("named: play bluey on netflix please", Targets.NETFLIX, Targets.named("play bluey on netflix please"));
+        check("named: bare on stremio (no words before)", null, Targets.named("on stremio"));
         check("named: empty", null, Targets.named(""));
         check("named: null", null, Targets.named(null));
 

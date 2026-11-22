@@ -19,7 +19,7 @@ public class RedactorTest {
 
     public static void main(String[] args) {
         // IPv4
-        check("IPv4", "connect 192.168.1.161:5555 ok", "connect [ip]:5555 ok");
+        check("IPv4", "connect 10.1.2.3:5555 ok", "connect [ip]:5555 ok");
         check("two IPv4", "from 10.0.0.2 to 8.8.8.8", "from [ip] to [ip]");
         // IPv6
         check("IPv6 full", "addr 2001:0db8:85a3:0000:0000:8a2e:0370:7334 up", "addr [ip] up");

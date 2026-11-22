@@ -136,6 +136,11 @@ public class QueryCleanerTest {
         check("bluey on prime video", "bluey");
         check("bluey on amazon", "bluey");
         check("once upon a time in hollywood", "once upon a time in hollywood");
+        check("put on channel 4", "channel 4");
+        check("put on channel 5", "channel 5");
+        check("play channel 4", "channel 4");
+        check("put on netflix", "netflix");
+        check("put bluey on channel 4", "put bluey");
         check("on netflix", "");
         tivimate("sky news channel on tivi mate", "sky news");
         tivimate("bluey on smart tube", "bluey");

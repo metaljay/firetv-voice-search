@@ -160,8 +160,9 @@ public final class Targets {
 
     /**
      * The app named at the end of what was said ("bluey on netflix" -> Netflix), or null if none is.
-     * Only a trailing "on <name>" or "in <name>" counts, so a title that merely contains a name
-     * ("once upon a time in hollywood") is left alone.
+     * Only a trailing "on <name>" or "in <name>" with at least one word before it counts, after
+     * lead-ins ("put on", "play", ...) have been taken off the front. So a title that merely contains
+     * a name ("once upon a time in hollywood") is left alone, and so is "put on channel 5".
      */
     public static Target named(String spoken) {
         if (spoken == null) return null;
@@ -174,10 +175,10 @@ public final class Targets {
                 trimmed = true;
             }
         }
+        s = QueryCleaner.stripLeadIns(s);
         for (Object[] n : NAMES) {
             String name = (String) n[0];
-            if (s.equals("on " + name) || s.equals("in " + name)
-                    || s.endsWith(" on " + name) || s.endsWith(" in " + name)) {
+            if (s.endsWith(" on " + name) || s.endsWith(" in " + name)) {
                 return (Target) n[1];
             }
         }
