@@ -48,4 +48,13 @@ a11y_list_has "$O1:com.METALJAY.stremiovoice/.TIVIMATEhelper" && r=yes || r=no; 
 # add then remove gets back where it started
 check "add then remove: round trip" "$O1:$O2" "$(a11y_list_remove "$(a11y_list_add "$O1:$O2")")"
 
+# The functions run in the caller's shell: they must not overwrite the caller's own variables
+# (a clobbered loop counter once made `n=$((n + 1))` in service.sh fail and kill the script).
+n=5; l=L; e=E; old=O; out=U; list=I; prev=P; rest=R; f=F; tick=T
+a11y_list_has "$O1:$S:$O2" && true
+a11y_list_add "$O1" > /dev/null
+a11y_list_remove "$O1:$S" > /dev/null
+a11y_is_ours "$O1" && true
+check "no caller variable is overwritten" "5 L E O U I P R F T" "$n $l $e $old $out $list $prev $rest $f $tick"
+
 [ "$fail" = 0 ] && echo "All accessibility-list cases pass." || { echo "$fail accessibility-list case(s) FAILED."; exit 1; }

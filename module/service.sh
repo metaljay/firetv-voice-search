@@ -33,12 +33,12 @@ MODID=stremio_voice
 say() {
     log -t "$TAG" "$1"
     [ -d "$UPD" ] || return 0
-    f="$UPD/module.log"
-    [ -f "$f" ] || { : > "$f"; own "$f"; }
-    echo "$(date '+%m-%d %H:%M:%S') $1" >> "$f"
-    n=$(wc -l < "$f")
-    if [ "${n:-0}" -gt 300 ]; then
-        tail -n 200 "$f" > "$f.tmp" && own "$f.tmp" && mv -f "$f.tmp" "$f"
+    _say_f="$UPD/module.log"   # _say_ names: say runs in the caller's shell, so a plain n or f would clobber its own
+    [ -f "$_say_f" ] || { : > "$_say_f"; own "$_say_f"; }
+    echo "$(date '+%m-%d %H:%M:%S') $1" >> "$_say_f"
+    _say_n=$(wc -l < "$_say_f")
+    if [ "${_say_n:-0}" -gt 300 ]; then
+        tail -n 200 "$_say_f" > "$_say_f.tmp" && own "$_say_f.tmp" && mv -f "$_say_f.tmp" "$_say_f"
     fi
 }
 
@@ -359,21 +359,21 @@ helper_off_for_version_change() {
 # ---------- the "Alexa" hand-off ----------
 
 ALEXA_WINDOW=15   # seconds the voice button stays with real Alexa
-ALEXA_UNTIL=0     # when it comes back (seconds since 1970); 0 when the app has the button
+ALEXA_LEFT=0      # seconds of that window still to go; 0 when the app has the button
 
-# The app writes "alexa" to its folder when the listener says just "Alexa". Alexa's own text input
-# can't be reached, so the next press goes to her: the diversion switch goes off now (it is read
-# live, like when the app dies) and back on once the window has passed.
+# Called once a second. The app writes "alexa" to its folder when the listener says just "Alexa".
+# Alexa's own text input can't be reached, so the next press goes to her: the diversion switch goes
+# off now (it is read live, like when the app dies) and back on once the window has been counted
+# down. Counted in these calls, not with the clock, so a clock jump can't stretch or cut it short.
 check_alexa() {
     if [ -f "$UPD/alexa" ]; then
         rm -f "$UPD/alexa"
         setprop debug.alm.enable false
-        ALEXA_UNTIL=$(( $(date +%s) + ALEXA_WINDOW ))
+        ALEXA_LEFT=$ALEXA_WINDOW
         say "Alexa hand-off: the voice button is Alexa's for ${ALEXA_WINDOW} s"
-    fi
-    if [ "$ALEXA_UNTIL" -gt 0 ] && [ "$(date +%s)" -ge "$ALEXA_UNTIL" ]; then
-        ALEXA_UNTIL=0
-        if pidof "$PKG" >/dev/null 2>&1; then
+    elif [ "$ALEXA_LEFT" -gt 0 ]; then
+        ALEXA_LEFT=$((ALEXA_LEFT - 1))
+        if [ "$ALEXA_LEFT" -eq 0 ] && pidof "$PKG" >/dev/null 2>&1; then
             setprop debug.alm.enable true
             say "Alexa hand-off over: the voice button is ours again"
         fi
@@ -445,7 +445,7 @@ while true; do
 
     if pidof "$PKG" >/dev/null 2>&1; then
         # While the button is lent to Alexa it stays hers; check_alexa takes it back.
-        [ "$ALEXA_UNTIL" -eq 0 ] && setprop debug.alm.enable true
+        [ "$ALEXA_LEFT" -eq 0 ] && setprop debug.alm.enable true
         alive_run=$((alive_run + 1))
     else
         # App is gone: Alexa gets the button back at once, then we try to bring the app back.
@@ -470,11 +470,11 @@ while true; do
     fi
     # Ten one-second waits instead of one ten-second wait, so the hand-off, and the helper after a
     # by-name TiviMate search, are noticed within a second.
-    n=0
-    while [ "$n" -lt 10 ]; do
+    wait_tick=0
+    while [ "$wait_tick" -lt 10 ]; do
         sleep 1
         check_alexa
         sync_helper
-        n=$((n + 1))
+        wait_tick=$((wait_tick + 1))
     done
 done
