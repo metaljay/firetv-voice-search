@@ -468,6 +468,7 @@ public class VoiceService extends Service {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             startActivity(open);
+            timing("Amazon results screen asked for");
             return true;
         } catch (RuntimeException e) {
             Log.e(TAG, "could not open Amazon's search results", e);
@@ -529,6 +530,8 @@ public class VoiceService extends Service {
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             startActivity(open);
+            if (target.mode == Targets.Mode.APP_SEARCH) timing("link sent to " + target.name);
+            timing("app opened (" + target.name + ")");
             if (target.mode == Targets.Mode.TYPE_IN_APP) {
                 timing("TiviMate opened");
                 TiviMateHelper.kick();

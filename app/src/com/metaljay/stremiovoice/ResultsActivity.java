@@ -254,11 +254,13 @@ public class ResultsActivity extends Activity {
     }
 
     private void searchNow() {
+        VoiceService.timing("Cinemeta request start");
         Future<List<ResultRanker.Item>> films = pool.submit(fetch("movie"));
         Future<List<ResultRanker.Item>> shows = pool.submit(fetch("series"));
         List<ResultRanker.Item> filmList = get(films);
         List<ResultRanker.Item> showList = get(shows);
         final boolean offline = filmList == null && showList == null;
+        VoiceService.timing("Cinemeta answer");
         final List<ResultRanker.Item> merged = ResultRanker.merge(words, filmList, showList);
         Log.i(VoiceService.TAG, "pick-list for \"" + words + "\": " + merged.size() + " results"
                 + (offline ? " (catalogue unreachable)" : ""));
@@ -273,6 +275,7 @@ public class ResultsActivity extends Activity {
                 } else {
                     showResults(merged);
                 }
+                VoiceService.timing("list shown");
             }
         });
     }
