@@ -87,6 +87,15 @@ public class VoiceService extends Service {
     private ListeningBar bar;
     private SpeechRecognizer recognizer;
 
+    /** When the voice button went down (for the TIMING log lines). */
+    private static volatile long pressAtMs = 0;
+
+    /** Logs one TIMING line: the step, in milliseconds since the button went down. */
+    static void timing(String step) {
+        long t = pressAtMs == 0 ? -1 : System.currentTimeMillis() - pressAtMs;
+        Log.i(TAG, "TIMING " + t + " " + step);
+    }
+
     /** Counts button presses, so late callbacks from an older press can be ignored. */
     private int session = 0;
     private boolean active = false;   // a press is being handled
@@ -155,6 +164,7 @@ public class VoiceService extends Service {
             if (words != null) {
                 ArrayList<String> heard = new ArrayList<>();
                 heard.add(words);
+                pressAtMs = System.currentTimeMillis(); // so TIMING lines of a test search count from here
                 handleResult(heard);
             }
         }
@@ -202,6 +212,8 @@ public class VoiceService extends Service {
         released = false;
         final int mine = ++session;
         main.removeCallbacksAndMessages(null);
+        pressAtMs = System.currentTimeMillis();
+        timing("button down");
 
         bar.showListening();
         main.postDelayed(new Runnable() {
@@ -319,6 +331,7 @@ public class VoiceService extends Service {
         }
         String heard = candidates.get(0);
         Log.i(TAG, "heard: \"" + heard + "\"");
+        timing("words heard");
         if (QueryCleaner.isAlexaRequest(heard)) {
             handOverToAlexa();
             return;
@@ -516,7 +529,10 @@ public class VoiceService extends Service {
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             startActivity(open);
-            if (target.mode == Targets.Mode.TYPE_IN_APP) TiviMateHelper.kick();
+            if (target.mode == Targets.Mode.TYPE_IN_APP) {
+                timing("TiviMate opened");
+                TiviMateHelper.kick();
+            }
             Log.i(TAG, "opened " + target.name + " for \"" + words + "\"");
         } catch (RuntimeException e) {
             Log.e(TAG, "could not open " + target.name, e);

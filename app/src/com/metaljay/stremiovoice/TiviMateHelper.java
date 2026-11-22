@@ -54,6 +54,7 @@ public class TiviMateHelper extends AccessibilityService {
     private long lastClick = 0;
     private long menuSince = 0;   // when the menu got the focus, if it has it now
     private boolean ticking = false;
+    private long lastNoRootLog = 0;
     private long lastChangeMs = 0;   // when TiviMate's window last changed
     private int chooseToken = 0;     // tells a newer choosing from an older one
 
@@ -131,15 +132,24 @@ public class TiviMateHelper extends AccessibilityService {
         scheduleTick(); // events can be missed while a screen changes; look again soon
 
         AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null || !TIVIMATE.contentEquals(root.getPackageName())) return;
+        if (root == null || !TIVIMATE.contentEquals(root.getPackageName())) {
+            long t0 = System.currentTimeMillis();
+            if (t0 - lastNoRootLog > 2000) {
+                lastNoRootLog = t0;
+                Log.i(TAG, "TiviMate helper: TiviMate's screen not readable (" + (root == null ? "no window" : root.getPackageName()) + ")");
+            }
+            return;
+        }
 
         // 1. A search box is showing: fill it.
         AccessibilityNodeInfo box = findSearchBox(root);
         if (box != null) {
+            VoiceService.timing("box found");
             Bundle args = new Bundle();
             args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.words);
             boolean ok = box.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
             Log.i(TAG, "TiviMate helper: filled the search box with \"" + p.words + "\" (" + ok + ")");
+            VoiceService.timing("box filled");
             if (ok) {
                 PendingSearch.clear(p.id);
                 startChoosing(p.words, p.wantChannel);
@@ -155,7 +165,10 @@ public class TiviMateHelper extends AccessibilityService {
         // onto the menu while it is still sliding in, and a click then is lost.
         long now = System.currentTimeMillis();
         if (menuHasFocus(root)) {
-            if (menuSince == 0) menuSince = now;
+            if (menuSince == 0) {
+                menuSince = now;
+                VoiceService.timing("menu focused");
+            }
         } else {
             menuSince = 0;
         }
@@ -165,6 +178,7 @@ public class TiviMateHelper extends AccessibilityService {
             if (now - lastClick >= CLICK_GAP_MS) {
                 lastClick = now;
                 boolean ok = item.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                VoiceService.timing("Search clicked");
                 Log.i(TAG, "TiviMate helper: clicked the menu's Search item (" + ok + ")");
             }
             return;
@@ -182,6 +196,7 @@ public class TiviMateHelper extends AccessibilityService {
         if (now - lastBack >= BACK_GAP_MS) {
             lastBack = now;
             backs++;
+            VoiceService.timing("Back " + backs);
             Log.i(TAG, "TiviMate helper: Back " + backs + " of " + MAX_BACKS);
             performGlobalAction(GLOBAL_ACTION_BACK);
         }
@@ -195,6 +210,7 @@ public class TiviMateHelper extends AccessibilityService {
     private void startChoosing(final String words, final boolean wantChannel) {
         final int token = ++chooseToken;
         final long filledAt = System.currentTimeMillis();
+        loggedRows = "";
         lastChangeMs = filledAt;
         main.postDelayed(new Runnable() {
             @Override public void run() {
@@ -207,6 +223,7 @@ public class TiviMateHelper extends AccessibilityService {
                     if (root == null || !TIVIMATE.contentEquals(root.getPackageName())) return;
                     // A newer search is waiting: its own fill-in comes first.
                     if (PendingSearch.current(now, MAX_AGE_MS) != null) return;
+                    logNewRows(root);
                     if (quiet || capped) {
                         if (chooseAndFocus(root, words, wantChannel)) return;
                         if (capped) {
@@ -220,6 +237,26 @@ public class TiviMateHelper extends AccessibilityService {
                 }
             }
         }, CHOOSE_POLL_MS);
+    }
+
+    private String loggedRows = "";
+
+    /** TIMING: logs each time a result row header (Channels, Movies, Shows) shows up. */
+    private void logNewRows(AccessibilityNodeInfo root) {
+        List<AccessibilityNodeInfo> all = new ArrayList<>();
+        collect(root, all);
+        StringBuilder sb = new StringBuilder();
+        for (AccessibilityNodeInfo n : all) {
+            CharSequence t = n.getText();
+            if (t == null || !n.isVisibleToUser()) continue;
+            String row = ResultChooser.knownRow(t.toString());
+            if (row != null && !hasClickableAncestor(n) && sb.indexOf(row) < 0) sb.append(row).append(' ');
+        }
+        String now = sb.toString().trim();
+        if (!now.equals(loggedRows)) {
+            loggedRows = now;
+            VoiceService.timing("rows showing: " + now);
+        }
     }
 
     /** Gathers the visible result cards, lets ResultChooser pick one and focuses it. False if there are no cards. */
@@ -256,17 +293,24 @@ public class TiviMateHelper extends AccessibilityService {
                 nodes.remove(i);
             }
         }
+        if (!cards.isEmpty()) {
+            StringBuilder rows = new StringBuilder();
+            for (ResultChooser.Card c : cards) rows.append(c.row == null ? "?" : c.row.substring(0, 1)).append(' ');
+            VoiceService.timing("result cards seen: " + cards.size() + " (" + rows.toString().trim() + ")");
+        }
         int pick = ResultChooser.choose(cards, words, wantChannel, Locale.getDefault().getCountry());
         if (pick < 0 && nothingFound != null) {
             // No results. The focus still has to leave the search box: left there, Amazon's
             // on-screen keyboard pops up (seen on the stick), so it goes to the message.
             nothingFound.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+            VoiceService.timing("best match focused (nothing found)");
             Log.i(TAG, "TiviMate helper: no results");
             return true;
         }
         if (pick < 0) return false;
         ResultChooser.Card c = cards.get(pick);
         boolean ok = nodes.get(pick).performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+        VoiceService.timing("best match focused");
         Log.i(TAG, "TiviMate helper: focused " + (c.row == null ? "(no row header)" : c.row) + ": "
                 + c.title + " (" + ok + ")");
         return true;
