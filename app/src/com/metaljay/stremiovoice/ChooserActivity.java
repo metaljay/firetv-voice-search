@@ -131,7 +131,8 @@ public class ChooserActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BACKGROUND);
-        root.setPadding(dp(96), dp(28), dp(96), dp(24));
+        // 48dp top and bottom keeps the text inside a TV's overscan edge.
+        root.setPadding(dp(96), dp(48), dp(96), dp(48));
 
         TextView title = text("Voice Search", 34, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -440,9 +441,9 @@ public class ChooserActivity extends Activity {
         View b = actionButton("Remove Voice Search", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                new AlertDialog.Builder(ChooserActivity.this)
+                AlertDialog d = new AlertDialog.Builder(ChooserActivity.this)
                         .setTitle("Remove Voice Search?")
-                        .setMessage("Remove Voice Search? Alexa gets the button back after a restart.")
+                        .setMessage("Alexa gets the button back after a restart.")
                         .setPositiveButton("Remove", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface d, int which) {
@@ -450,7 +451,9 @@ public class ChooserActivity extends Activity {
                             }
                         })
                         .setNegativeButton("Cancel", null)
-                        .show();
+                        .create();
+                d.show();
+                d.getButton(DialogInterface.BUTTON_NEGATIVE).requestFocus(); // the safe choice
             }
         });
         return b;

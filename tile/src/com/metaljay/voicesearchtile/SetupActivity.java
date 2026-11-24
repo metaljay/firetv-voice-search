@@ -1,6 +1,10 @@
 package com.metaljay.voicesearchtile;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ComponentName;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -48,6 +52,8 @@ public class SetupActivity extends Activity {
     private static final int ORANGE = 0xFFFFB84D;
 
     static final String ROOT_GUIDE = "https://github.com/metaljay/firetv-voice-search#root-your-fire-tv";
+    private static final String MAGISK_PACKAGE = "com.topjohnwu.magisk";
+    private static final String MAIN_PACKAGE = "com.metaljay.stremiovoice";
     private static final String MODULE_DIR = "/data/adb/modules/stremio_voice";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -61,7 +67,8 @@ public class SetupActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BACKGROUND);
-        root.setPadding(dp(96), dp(36), dp(96), dp(28));
+        // 48dp top and bottom keeps the text inside a TV's overscan edge.
+        root.setPadding(dp(96), dp(48), dp(96), dp(48));
 
         TextView title = text("Voice Search setup", 34, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -98,8 +105,8 @@ public class SetupActivity extends Activity {
         clear();
         body.addView(line("Voice Search lets you hold the voice button on your remote and say what to watch. "
                 + "It needs a rooted Fire TV with Magisk.", 20, Color.WHITE));
-        body.addView(line("When you press the button below, Magisk will ask whether to allow Voice Search to use root. "
-                + "Choose Grant on the TV.", 20, GREY));
+        body.addView(line("Magisk 31.1 and later: first open Magisk, go to Superuser, press +, and switch on Voice Search. "
+                + "Older Magisk asks you on screen instead: choose Grant.", 20, GREY));
         View go = button("Set up Voice Search", new Runnable() {
             @Override public void run() { checkRoot(); }
         });
@@ -107,16 +114,17 @@ public class SetupActivity extends Activity {
         go.requestFocus();
     }
 
-    private void showNoRoot(boolean askedAndRefused) {
+    /** No su at all: the stick isn't rooted. */
+    private void showNoRoot() {
         clear();
         TextView head = line("Voice Search needs a rooted Fire TV with Magisk.", 24, Color.WHITE);
         head.setTypeface(Typeface.DEFAULT_BOLD);
         body.addView(head);
         body.addView(line("Without root it can't:", 20, Color.WHITE));
-        body.addView(line("• hear you (Alexa's speech-to-text is for system apps only)", 20, Color.WHITE));
-        body.addView(line("• take over the voice button", 20, Color.WHITE));
-        body.addView(line("• send Netflix, iPlayer and others to Amazon's search", 20, Color.WHITE));
-        body.addView(line("• hand the button back to Alexa if it stops", 20, Color.WHITE));
+        body.addView(line("\u2022 hear you (Alexa's speech-to-text is for system apps only)", 20, Color.WHITE));
+        body.addView(line("\u2022 take over the voice button", 20, Color.WHITE));
+        body.addView(line("\u2022 send Netflix, iPlayer and others to Amazon's search", 20, Color.WHITE));
+        body.addView(line("\u2022 hand the button back to Alexa if it stops", 20, Color.WHITE));
 
         LinearLayout qrRow = new LinearLayout(this);
         qrRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -133,23 +141,56 @@ public class SetupActivity extends Activity {
         side.setPadding(dp(28), 0, 0, 0);
         qrRow.addView(side, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         side.addView(line("Scan with your phone for how to root your stick and install Magisk.", 20, Color.WHITE));
-        if (askedAndRefused) {
-            TextView why = line("Magisk didn't allow it, or didn't answer in time. If you chose Deny by mistake, try again.", 18, ORANGE);
-            why.setPadding(0, dp(12), 0, 0);
-            side.addView(why);
-        }
-        View first;
-        if (askedAndRefused) {
-            first = button("Try again", new Runnable() {
-                @Override public void run() { checkRoot(); }
-            });
-            side.addView(spaced(row(first, button("Close", closeAction()))));
-        } else {
-            first = button("Close", closeAction());
-            side.addView(spaced(row(first)));
-        }
+        View first = button("Close", closeAction());
+        side.addView(spaced(row(first)));
         body.addView(qrRow);
         first.requestFocus();
+    }
+
+    /** su is there but Magisk refused it (or didn't answer): Voice Search has to be allowed in Magisk first. */
+    private void showNotAllowed() {
+        clear();
+        TextView head = line("Magisk hasn't allowed Voice Search yet", 24, ORANGE);
+        head.setTypeface(Typeface.DEFAULT_BOLD);
+        body.addView(head);
+        body.addView(card("1. Open Magisk.\n"
+                + "2. Go to Superuser.\n"
+                + "3. Press + (top left).\n"
+                + "4. Switch on Voice Search.\n"
+                + "5. Come back here and press Try again."));
+        View open = null;
+        if (magiskPresent()) {
+            open = button("Open Magisk", new Runnable() {
+                @Override public void run() { openMagisk(); }
+            });
+        }
+        View again = button("Try again", new Runnable() {
+            @Override public void run() { checkRoot(); }
+        });
+        View close = button("Close", closeAction());
+        View first;
+        if (open != null) {
+            body.addView(row(open, again, close));
+            first = open;
+        } else {
+            body.addView(row(again, close));
+            first = again;
+        }
+        first.requestFocus();
+    }
+
+    private boolean magiskPresent() {
+        return getPackageManager().getLaunchIntentForPackage(MAGISK_PACKAGE) != null;
+    }
+
+    private void openMagisk() {
+        Intent i = getPackageManager().getLaunchIntentForPackage(MAGISK_PACKAGE);
+        if (i == null) return;
+        try {
+            startActivity(i);
+        } catch (RuntimeException e) {
+            // Magisk can't be opened from here; the steps on screen still work by hand.
+        }
     }
 
     private void showWarning() {
@@ -223,22 +264,64 @@ public class SetupActivity extends Activity {
         first.requestFocus();
     }
 
-    /** The add-on's folder is there but its app isn't running (switched off in Magisk, or waiting for a restart). */
+    /** The add-on's folder is there. Either its app is installed (running), or it is switched off or waiting for a restart. */
     private void showExisting() {
         clear();
-        TextView head = line("Voice Search is already in Magisk", 24, Color.WHITE);
+        boolean installed = mainAppPresent();
+        TextView head = line(installed ? "Voice Search is installed" : "Voice Search is already in Magisk", 24, Color.WHITE);
         head.setTypeface(Typeface.DEFAULT_BOLD);
         body.addView(head);
-        body.addView(card("The add-on is installed but isn't running. It may be switched off in Magisk's Modules list, "
-                + "or waiting for a restart. You can restart to try it, or remove it."));
-        View restart = button("Restart now", new Runnable() {
-            @Override public void run() { restartNow(); }
-        });
+        View first;
+        if (installed) {
+            body.addView(card("Open its settings to choose where results open, or remove it."));
+            first = button("Open settings", new Runnable() {
+                @Override public void run() { openSettings(); }
+            });
+        } else {
+            body.addView(card("The add-on is installed but isn't running. It may be switched off in Magisk's Modules list, "
+                    + "or waiting for a restart. You can restart to try it, or remove it."));
+            first = button("Restart now", new Runnable() {
+                @Override public void run() { restartNow(); }
+            });
+        }
         View remove = button("Remove", new Runnable() {
-            @Override public void run() { removeAddOn(); }
+            @Override public void run() { confirmRemove(); }
         });
-        body.addView(row(restart, remove, button("Close", closeAction())));
-        restart.requestFocus();
+        body.addView(row(first, remove, button("Close", closeAction())));
+        first.requestFocus();
+    }
+
+    private boolean mainAppPresent() {
+        try {
+            getPackageManager().getPackageInfo(MAIN_PACKAGE, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    private void openSettings() {
+        try {
+            startActivity(new Intent().setComponent(new ComponentName(MAIN_PACKAGE, MAIN_PACKAGE + ".ChooserActivity"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            finish();
+        } catch (RuntimeException e) {
+            showFailed("Couldn't open Voice Search's settings.", false);
+        }
+    }
+
+    /** Asks before removing; the safe choice (Cancel) has the focus. */
+    private void confirmRemove() {
+        AlertDialog d = new AlertDialog.Builder(this)
+                .setTitle("Remove Voice Search?")
+                .setMessage("Alexa gets the button back after a restart.")
+                .setPositiveButton("Remove", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) { removeAddOn(); }
+                })
+                .setNegativeButton("Cancel", null)
+                .create();
+        d.show();
+        d.getButton(DialogInterface.BUTTON_NEGATIVE).requestFocus();
     }
 
     private void showRemoved() {
@@ -266,9 +349,9 @@ public class SetupActivity extends Activity {
             public void run() {
                 final Root.Result r = Root.run("id", 30);
                 if (r.missing) {
-                    post(new Runnable() { @Override public void run() { busy = false; showNoRoot(false); } });
+                    post(new Runnable() { @Override public void run() { busy = false; showNoRoot(); } });
                 } else if (!Root.isRoot(r)) {
-                    post(new Runnable() { @Override public void run() { busy = false; showNoRoot(true); } });
+                    post(new Runnable() { @Override public void run() { busy = false; showNotAllowed(); } });
                 } else {
                     final Root.Result folder = Root.run("[ -d " + MODULE_DIR + " ] && echo yes || echo no", 20);
                     final boolean exists = folder.ok() && folder.output.contains("yes");
