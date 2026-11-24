@@ -49,7 +49,6 @@ public class SetupActivity extends Activity {
 
     static final String ROOT_GUIDE = "https://github.com/metaljay/firetv-voice-search#root-your-fire-tv";
     private static final String MODULE_DIR = "/data/adb/modules/stremio_voice";
-    private static final String TEMP_ZIP = "/data/local/tmp/voice_search_setup.zip";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private LinearLayout body;
@@ -179,9 +178,9 @@ public class SetupActivity extends Activity {
         View cont = button("Continue", new Runnable() {
             @Override public void run() { install(); }
         });
-        body.addView(row(button("Cancel", closeAction()), cont));
-        cont.requestFocus();
-        // Cancel is first in the row so a stray double press cancels; Continue is the deliberate move.
+        View cancel = button("Cancel", closeAction());
+        body.addView(row(cancel, cont));
+        cancel.requestFocus(); // the safe choice has the focus; Continue is the deliberate move
     }
 
     private void showBusy(String message) {
@@ -363,12 +362,12 @@ public class SetupActivity extends Activity {
             }
             String sha = sha256(zip);
             say("Installing through Magisk…");
-            // Root copies the checked file somewhere Magisk's installer can read, makes sure it is still
-            // byte-for-byte the file that was checked, installs it, and cleans up. The exit code is
-            // Magisk's own.
-            String script = "cp '" + zip.getAbsolutePath() + "' " + TEMP_ZIP + " && chmod 644 " + TEMP_ZIP
-                    + " && [ \"$(sha256sum " + TEMP_ZIP + " | cut -d' ' -f1)\" = " + sha + " ]"
-                    + " && magisk --install-module " + TEMP_ZIP + "; rc=$?; rm -f " + TEMP_ZIP + "; exit $rc";
+            // Root reads the app's cache itself (no copy anywhere another app could swap the file):
+            // it makes sure the file is still byte-for-byte the one that was checked, then installs it.
+            // The exit code is Magisk's own.
+            String path = zip.getAbsolutePath();
+            String script = "[ \"$(sha256sum '" + path + "' | cut -d' ' -f1)\" = " + sha + " ]"
+                    + " && magisk --install-module '" + path + "'";
             Root.Result r = Root.run(script, 180);
             if (r.missing) throw new IOException("root disappeared");
             if (r.timedOut) throw new IOException("Magisk didn't finish in time");

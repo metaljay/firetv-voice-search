@@ -13,7 +13,13 @@ trap 'rm -rf "$TMP"' EXIT
 
 # The stub: STUB_PM is the whole output "pm list packages --show-versioncode <filter>" would give.
 STUB_PM=""
-pm() { [ "$1 $2 $3" = "list packages --show-versioncode" ] && printf '%s' "$STUB_PM"; }
+STUB_PATH=""   # what "pm path <pkg>" prints; empty means the package manager doesn't know the package
+pm() {
+    case "$1" in
+        list) printf '%s' "$STUB_PM" ;;
+        path) [ -n "$STUB_PATH" ] && { printf '%s\n' "$STUB_PATH"; return 0; }; return 1 ;;
+    esac
+}
 
 version() { printf '%s\n' "$1" > "$TMP/tile.version"; }
 decide() { tile_should_install "$PKG" "$TMP/tile.version" && echo install || echo leave; }
@@ -45,12 +51,24 @@ package:$PKG versionCode:1
 "
 check "look-alike package name is ignored -> install" install "$(decide)"
 
+# The package is there but its code can't be read (odd pm output): never treat it as missing.
+version 5
+STUB_PM="garbage
+"
+STUB_PATH="package:/data/app/x/base.apk"
+check "installed, versionCode unreadable -> leave" leave "$(decide)"
+STUB_PM=""
+check "installed, no list output at all -> leave" leave "$(decide)"
+STUB_PATH=""
+check "really missing (pm path fails too) -> install" install "$(decide)"
+
 # A missing or odd version file never forces an install over an installed app.
 rm -f "$TMP/tile.version"
+STUB_PATH="package:/data/app/x/base.apk"
 STUB_PM="package:$PKG versionCode:1
 "
 check "no version file, installed -> leave" leave "$(decide)"
-STUB_PM=""
+STUB_PM=""; STUB_PATH=""
 check "no version file, missing -> install" install "$(decide)"
 version "oops"
 STUB_PM="package:$PKG versionCode:1

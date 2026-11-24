@@ -17,7 +17,12 @@ tile_installed_code() {
 # tile_should_install PKG VERSION_FILE: succeeds when the app should be installed (or updated).
 tile_should_install() {
     _tc_have=$(tile_installed_code "$1")
-    [ -z "$_tc_have" ] && return 0                      # missing: install
+    if [ -z "$_tc_have" ]; then
+        # No code could be read. Missing only if the package manager doesn't know the package at
+        # all; if it is there but the code is unreadable (odd pm output), leave it alone.
+        pm path "$1" 2>/dev/null | grep -q "^package:" && return 1
+        return 0
+    fi
     _tc_new=$([ -f "$2" ] && tr -d '\r\n ' < "$2")
     case "$_tc_new" in ''|*[!0-9]*) return 1 ;; esac    # no usable version file: leave what is there
     [ "$_tc_new" -gt "$_tc_have" ]                      # only a higher code installs

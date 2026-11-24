@@ -158,7 +158,13 @@ public class ChooserActivity extends Activity {
         bottom.addView(updatesButton());
         bottom.addView(supportButton());
         bottom.addView(reportButton());
-        bottom.addView(removeButton());
+
+        // Remove Voice Search sits on its own line, so the row above never runs off a smaller screen.
+        LinearLayout removeRow = new LinearLayout(this);
+        removeRow.setOrientation(LinearLayout.HORIZONTAL);
+        removeRow.setPadding(0, dp(8), 0, 0);
+        removeRow.addView(removeButton());
+        root.addView(removeRow);
 
         LinearLayout notes = new LinearLayout(this);
         notes.setOrientation(LinearLayout.VERTICAL);
@@ -447,7 +453,6 @@ public class ChooserActivity extends Activity {
                         .show();
             }
         });
-        ((LinearLayout.LayoutParams) b.getLayoutParams()).leftMargin = dp(16);
         return b;
     }
 
