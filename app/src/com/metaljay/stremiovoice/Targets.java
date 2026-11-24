@@ -63,27 +63,27 @@ public final class Targets {
 
     public static final Target STREMIO = new Target(
             "stremio", "Stremio", "com.stremio.one", Mode.APP_SEARCH,
-            "Stremio's own search results", "stremio:///search?search=",
+            "Films and series", "stremio:///search?search=",
             "stremio");
 
     public static final Target NUVIO = new Target(
             "nuvio", "Nuvio", "com.nuvio.tv", Mode.PICK_LIST,
-            "Pick from a row of posters, then Nuvio opens it", null,
+            "Films and series", null,
             "nuvio");
 
     public static final Target WUPLAY = new Target(
             "wuplay", "WuPlay", "app.wuplay.androidtv", Mode.PICK_LIST,
-            "Pick from a row of posters, then WuPlay opens it", null,
+            "Films and series", null,
             "wuplay", "wu play", "woo play");
 
     public static final Target TIVIMATE = new Target(
             "tivimate", "TiviMate", "ar.tvplayer.tv", Mode.TYPE_IN_APP,
-            "TiviMate's own search: channels, films and series", null,
+            "Channels, films and series", null,
             "tivimate", "tivi mate", "tv mate", "tivo mate");
 
     public static final Target SMARTTUBE = new Target(
             "smarttube", "SmartTube", "org.smarttube.stable", Mode.APP_SEARCH,
-            "SmartTube's own search results", "https://www.youtube.com/results?search_query=",
+            "YouTube videos", "https://www.youtube.com/results?search_query=",
             "smarttube", "smart tube");
 
     /**
@@ -93,7 +93,7 @@ public final class Targets {
      */
     public static final Target AMAZON = new Target(
             "amazon", "Amazon search", "com.amazon.tv.launcher", Mode.AMAZON_SEARCH,
-            "Amazon's own results screen: matches from all your apps", null,
+            "Searches all your apps", null,
             "amazon search");
 
     // Apps with no search link: opened on their home screen (see NO_SEARCH).

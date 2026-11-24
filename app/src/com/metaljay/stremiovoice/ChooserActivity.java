@@ -53,6 +53,7 @@ public class ChooserActivity extends Activity {
 
     private LinearLayout rows;
     private TextView saved;
+    private TextView intro;
     private TextView updateNote;
     private View done;
 
@@ -131,59 +132,58 @@ public class ChooserActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BACKGROUND);
-        // 48dp top and bottom keeps the text inside a TV's overscan edge.
-        root.setPadding(dp(96), dp(48), dp(96), dp(48));
+        // Everything fits on one 1080p screen. 32dp top and bottom keeps it inside a TV's overscan edge.
+        root.setPadding(dp(72), dp(30), dp(72), dp(30));
 
-        TextView title = text("Voice Search", 34, Color.WHITE);
+        // Header: the title on the left, the small Support button in the top-right corner.
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(header);
+        TextView title = text("Voice Search", 32, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        root.addView(title);
+        header.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(supportButton());
 
-        TextView intro = text("Hold the voice button and say a title, or a title and \"on\" an app. Results open in:", 18, GREY);
-        intro.setPadding(0, dp(4), 0, dp(12));
+        intro = text("", 17, GREY);
+        intro.setPadding(0, dp(0), 0, dp(8));
         root.addView(intro);
 
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
-        root.addView(rows);
+        root.addView(rows, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        // Bottom: a row of buttons (Done, Updates, report), and under it which app has the voice
-        // button, update news and how to come back.
+        // Bottom: one row of buttons, and under it which app has the voice button, update news
+        // and how to come back.
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.HORIZONTAL);
         bottom.setGravity(Gravity.CENTER_VERTICAL);
-        bottom.setPadding(0, dp(8), 0, 0);
+        bottom.setPadding(0, dp(4), 0, 0);
         root.addView(bottom);
 
         done = doneButton();
         bottom.addView(done);
         bottom.addView(updatesButton());
-        bottom.addView(supportButton());
         bottom.addView(reportButton());
-
-        // Remove Voice Search sits on its own line, so the row above never runs off a smaller screen.
-        LinearLayout removeRow = new LinearLayout(this);
-        removeRow.setOrientation(LinearLayout.HORIZONTAL);
-        removeRow.setPadding(0, dp(8), 0, 0);
-        removeRow.addView(removeButton());
-        root.addView(removeRow);
+        bottom.addView(removeButton());
 
         LinearLayout notes = new LinearLayout(this);
         notes.setOrientation(LinearLayout.VERTICAL);
-        notes.setPadding(0, dp(10), 0, 0);
+        notes.setPadding(0, dp(8), 0, 0);
         root.addView(notes);
 
         // Which app has the voice button; starts with "Saved" once a choice is made.
-        saved = text("", 20, ACCENT);
+        saved = text("", 18, ACCENT);
         saved.setTypeface(Typeface.DEFAULT_BOLD);
         notes.addView(saved);
 
         // Update news: "Update available", "isn't finished until you restart", or a went-back notice.
-        updateNote = text("", 18, ACCENT);
-        updateNote.setPadding(0, dp(4), 0, 0);
+        updateNote = text("", 16, ACCENT);
+        updateNote.setPadding(0, dp(2), 0, 0);
         notes.addView(updateNote);
 
-        TextView hint = text("To come back here, hold the voice button and say \"Voice settings\".", 15, GREY);
-        hint.setPadding(0, dp(4), 0, 0);
+        TextView hint = text("To get back here, hold the voice button and say \"Voice settings\".", 15, GREY);
+        hint.setPadding(0, dp(2), 0, 0);
         notes.addView(hint);
 
         // Scrolls if a smaller screen can't fit it all; the remote's focus scrolls it.
@@ -223,8 +223,8 @@ public class ChooserActivity extends Activity {
                 pair.setOrientation(LinearLayout.HORIZONTAL);
                 pair.setBaselineAligned(false);
                 LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                plp.bottomMargin = dp(6);
+                        LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f); // the lines share the spare height
+                plp.bottomMargin = dp(7);
                 rows.addView(pair, plp);
             } else {
                 ((LinearLayout.LayoutParams) row.getLayoutParams()).leftMargin = dp(10);
@@ -242,15 +242,16 @@ public class ChooserActivity extends Activity {
         if (focus == null && rows.getChildCount() > 1) focus = rows.getChildAt(1); // the first app line
         if (focus != null) focus.requestFocus();
 
-        saved.setText(current == null ? "Install Stremio, Nuvio, WuPlay, TiviMate or SmartTube to use voice search."
-                : "The voice button searches in " + current.name + ".");
+        updateIntro();
+        saved.setText(current == null ? "Install Stremio, Nuvio, WuPlay, TiviMate or SmartTube to start."
+                : "Voice search uses " + current.name + ".");
     }
 
     private View row(final Targets.Target t, boolean installed, boolean selected) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(16), dp(6), dp(16), dp(6));
+        row.setPadding(dp(18), dp(2), dp(18), dp(2));
         // Half the width each (the caller puts two in a line); as tall as the taller of the two.
         row.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
@@ -261,13 +262,16 @@ public class ChooserActivity extends Activity {
 
         TextView mark = text(selected ? "✓" : "", 26, ACCENT);
         mark.setTypeface(Typeface.DEFAULT_BOLD);
-        mark.setWidth(dp(36));
+        mark.setWidth(dp(40));
         row.addView(mark);
 
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
         words.addView(text(t.name, 22, Color.WHITE));
-        words.addView(text(installed ? t.description : "Not installed", 14, GREY));
+        TextView desc = text(installed ? t.description : "Not installed", 15, GREY);
+        desc.setSingleLine(true);
+        desc.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        words.addView(desc);
         row.addView(words, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         if (!installed) {
@@ -287,7 +291,7 @@ public class ChooserActivity extends Activity {
             public void onClick(View v) {
                 saveTargetId(ChooserActivity.this, t.id);
                 refresh(t.id);
-                saved.setText("Saved \u2713  The voice button now searches in " + t.name + ".");
+                saved.setText("Saved \u2713  Voice search now uses " + t.name + ".");
                 done.requestFocus(); // one more press closes the screen
             }
         });
@@ -299,10 +303,10 @@ public class ChooserActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(28), dp(5), dp(28), dp(5));
+        row.setPadding(dp(24), dp(7), dp(24), dp(7));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(6);
+        lp.bottomMargin = dp(7);
         row.setLayoutParams(lp);
 
         final GradientDrawable bg = new GradientDrawable();
@@ -312,8 +316,8 @@ public class ChooserActivity extends Activity {
 
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
-        words.addView(text("Say the app's name", 24, Color.WHITE));
-        words.addView(text("\"Bluey on Netflix\" opens that app's results; off, the app below is always used", 16, GREY));
+        words.addView(text("Say the app's name", 21, Color.WHITE));
+        words.addView(text("Like \"Bluey on SmartTube\"", 15, GREY));
         row.addView(words, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         final TextView value = text(appNamesEnabled(this) ? "On" : "Off", 24, ACCENT);
@@ -332,9 +336,10 @@ public class ChooserActivity extends Activity {
             public void onClick(View v) {
                 boolean on = !appNamesEnabled(ChooserActivity.this);
                 setAppNamesEnabled(ChooserActivity.this, on);
+                updateIntro();
                 value.setText(on ? "On" : "Off");
-                saved.setText("Saved \u2713  " + (on ? "Saying an app's name now picks it."
-                        : "The app's name is now ignored; the app below is always used."));
+                saved.setText("Saved \u2713  " + (on ? "Say an app's name to search there."
+                        : "Always uses the ticked app."));
             }
         });
         return row;
@@ -345,10 +350,10 @@ public class ChooserActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(28), dp(5), dp(28), dp(5));
+        row.setPadding(dp(24), dp(7), dp(24), dp(7));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(6);
+        lp.bottomMargin = dp(7);
         row.setLayoutParams(lp);
 
         final GradientDrawable bg = new GradientDrawable();
@@ -358,8 +363,8 @@ public class ChooserActivity extends Activity {
 
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
-        words.addView(text("Get TiviMate ready while I talk", 24, Color.WHITE));
-        words.addView(text("Always leaves a playing channel as soon as you press the button", 16, GREY));
+        words.addView(text("Faster TiviMate", 21, Color.WHITE));
+        words.addView(text("Always is quickest, but stops a channel that's playing", 15, GREY));
         row.addView(words, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         final TextView value = text(prewarmLabel(tivimatePrewarm(this)), 24, ACCENT);
@@ -380,14 +385,21 @@ public class ChooserActivity extends Activity {
                         ? TiviMatePrewarm.IDLE : TiviMatePrewarm.ALWAYS;
                 setTivimatePrewarm(ChooserActivity.this, now);
                 value.setText(prewarmLabel(now));
-                saved.setText("Saved \u2713  TiviMate gets ready while you talk: " + prewarmLabel(now) + ".");
+                saved.setText("Saved \u2713  Faster TiviMate: " + prewarmLabel(now) + ".");
             }
         });
         return row;
     }
 
+    /** The line under the title: what the ticked app is for, which depends on "Say the app's name". */
+    private void updateIntro() {
+        intro.setText(appNamesEnabled(this)
+                ? "Hold the voice button and say what to watch. It opens in the ticked app, or the app you name."
+                : "Hold the voice button and say what to watch. It opens in the ticked app.");
+    }
+
     private static String prewarmLabel(String mode) {
-        return TiviMatePrewarm.ALWAYS.equals(mode) ? "Always" : "When nothing is playing";
+        return TiviMatePrewarm.ALWAYS.equals(mode) ? "Always" : "When nothing's playing";
     }
 
     /** "Done": closes the screen, back to where it was opened from (Home, from the tile). */
@@ -426,7 +438,7 @@ public class ChooserActivity extends Activity {
 
     /** "Send a problem report": opens the report screen. */
     private View reportButton() {
-        View b = actionButton("Send a problem report", new View.OnClickListener() {
+        View b = actionButton("Report a problem", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 startActivity(new Intent(ChooserActivity.this, ReportActivity.class));
@@ -456,6 +468,7 @@ public class ChooserActivity extends Activity {
                 d.getButton(DialogInterface.BUTTON_NEGATIVE).requestFocus(); // the safe choice
             }
         });
+        ((LinearLayout.LayoutParams) b.getLayoutParams()).leftMargin = dp(16);
         return b;
     }
 
@@ -527,9 +540,10 @@ public class ChooserActivity extends Activity {
     }
 
     private View actionButton(String label, View.OnClickListener onClick) {
-        TextView b = text(label, 22, Color.WHITE);
+        TextView b = text(label, 19, Color.WHITE);
         b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(24), dp(12), dp(24), dp(12));
+        b.setSingleLine(true); // a label never breaks onto a second line
+        b.setPadding(dp(22), dp(8), dp(22), dp(8));
         final GradientDrawable bg = new GradientDrawable();
         bg.setColor(CARD);
         bg.setCornerRadius(dp(16));
