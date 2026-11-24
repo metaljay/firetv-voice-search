@@ -55,7 +55,17 @@ Nothing else has been tested. Reports from other devices and Fire OS versions ar
 
 ## Install
 
-You need a rooted Fire TV with Magisk, and at least one of Stremio, Nuvio, WuPlay, TiviMate or SmartTube for Android TV (Amazon search needs none). The Fire TV Stick 4K Max runs 32-bit apps only, so use Nuvio's `armeabi-v7a` build there (WuPlay has one download that holds both 32- and 64-bit code, and the stick picks the 32-bit part itself).
+You need a rooted Fire TV with Magisk (see [Root your Fire TV](#root-your-fire-tv)), and at least one of Stremio, Nuvio, WuPlay, TiviMate or SmartTube for Android TV (Amazon search needs none). The Fire TV Stick 4K Max runs 32-bit apps only, so use Nuvio's `armeabi-v7a` build there (WuPlay has one download that holds both 32- and 64-bit code, and the stick picks the 32-bit part itself).
+
+### The easy way: the Voice Search setup app
+
+1. Install the **Voice Search** app: from OpenShelf, or sideload `VoiceSearch.apk` from the [latest release](https://github.com/metaljay/firetv-voice-search/releases/latest).
+2. Open it and follow the screens. It explains that it needs root, then asks Magisk for permission (choose **Grant** on the TV, because the Magisk prompt only appears after you press the button that says so), warns you what it will do and how to undo it, checks your stick against the one it was tested on, downloads the add-on from this project's GitHub release, checks that it is genuine (it must be signed with the same key as the setup app itself), and hands it to Magisk to install. Choose **Restart now**, or **Later**; Voice Search starts after the restart.
+3. Without root it installs nothing and shows a QR code to the [root guide](#root-your-fire-tv) below.
+
+The setup app asks for the internet permission only, to download from GitHub. Afterwards its tile opens Voice Search's settings, where **Remove Voice Search** takes it away again.
+
+### The other way: the Magisk zip by hand
 
 Use the module zip (`voice_search.zip`) from a release, or build it yourself as described below. GitHub's automatic source zip is not a module.
 
@@ -69,6 +79,23 @@ $ADB reboot
 ```
 
 Give it about a minute after the restart, then hold the voice button.
+
+## Root your Fire TV
+
+Voice Search only works on a rooted Fire TV with [Magisk](https://github.com/topjohnwu/Magisk). Without root it can't hear you (Alexa's speech-to-text is for system apps only), take over the voice button, send Netflix, iPlayer and others to Amazon's search, or hand the button back to Alexa if it stops.
+
+- **Which sticks:** whether a stick can be rooted depends on the model and the Fire OS version it is on, and Amazon's updates can close a way in. Voice Search was built and tested on a Fire TV Stick 4K Max (2nd gen, `AFTKRT` / `karat`) on Fire OS 8.1.8.5 with Magisk 31.1. For what is known about that model, see XDA's thread [Fire TV Stick 4K Max 2nd Gen (karat) features and important info](https://xdaforums.com/t/fire-tv-stick-4k-max-2nd-gen-karat-features-and-important-info.4631995/), and look in XDA's Fire TV forums for the newest rooting guide for your own model and Fire OS version. Guides move and go out of date, so this page doesn't copy their steps.
+- **Magisk:** download it only from its official page, <https://github.com/topjohnwu/Magisk>.
+- **Rooting can brick a stick.** Do it at your own risk, read the whole guide for your exact model and Fire OS version first, and know the way back before you start.
+
+## Remove
+
+- **From the Voice Search app (easiest):** open Voice Search, choose **Remove Voice Search**, confirm, then **Restart now** (or **Later**). Alexa gets the button back after the restart. Then you can uninstall the **Voice Search** app (`com.metaljay.voicesearchtile`) in Fire TV Settings, Applications; on its own it only offers to set the add-on up again. (While the add-on is installed, an uninstalled copy comes back at the next restart.) If the add-on is installed but switched off, the setup app's **Remove** does the same through Magisk.
+- **Switch off:** create the file `/data/adb/modules/stremio_voice/disable` as root, then restart. Alexa has the button again and the app is gone. The Voice Search tile stays and opens the setup screens.
+- **Switch back on:** delete that file and restart.
+- **If TiviMate was the chosen app when you switched off this way,** the helper's entry stays in Android's accessibility list, and `accessibility_enabled` stays at 1 (the add-on can't clean up while it is off; the entry then points at an app that is gone, and does nothing). Switching the add-on back on and choosing another app removes it, and so does uninstalling (below).
+- **Uninstall for good by hand:** create `/data/adb/modules/stremio_voice/remove` and restart, or remove it in the Magisk app. The helper's entry is taken out of the accessibility list for you (by `uninstall.sh`, shortly after that restart finishes booting). Then uninstall the **Voice Search** app as above.
+- **If the stick won't start:** Magisk's safe mode switches every add-on off after two failed boots in a row.
 
 ## Updates
 
@@ -90,13 +117,6 @@ How it stays safe:
 
 Maintainers: the first paragraph of a release's notes is the summary the TV shows (about 300 characters), so write it for the person holding the remote. Attach `build/voice_search.zip` **and** `build/stremio_voice.zip` (the same file under the old name) to every release, exactly as `build.sh` produces them; they are already signed. Keep attaching both: Voice Search 2.3 and earlier only look for the old name, and the app takes the new name first.
 
-## Remove
-
-- **Switch off:** create the file `/data/adb/modules/stremio_voice/disable` as root, then restart. Alexa has the button again and the app is gone. The Voice Search tile stays and only shows a message that the add-on is off.
-- **Switch back on:** delete that file and restart.
-- **If TiviMate was the chosen app when you switched off this way,** the helper's entry stays in Android's accessibility list, and `accessibility_enabled` stays at 1 (the add-on can't clean up while it is off; the entry then points at an app that is gone, and does nothing). Switching the add-on back on and choosing another app removes it, and so does uninstalling (below).
-- **Uninstall for good:** create `/data/adb/modules/stremio_voice/remove` and restart, or remove it in the Magisk app. The helper's entry is taken out of the accessibility list for you (by `uninstall.sh`, shortly after that restart finishes booting). Then uninstall the **Voice Search** tile app (`com.metaljay.voicesearchtile`) in Settings, Applications; on its own it only shows a message that the add-on is gone. (While the add-on is installed, an uninstalled tile comes back at the next restart.)
-
 ## How it works
 
 1. Fire OS has a built-in switch, the system property `debug.alm.enable`. When it is `true`, a press of the voice button (key code 322) is sent out as a broadcast, `com.amazon.tv.alm.action.KEY_INFO`, once on button-down and once on button-up, instead of starting Alexa.
@@ -105,7 +125,7 @@ Maintainers: the first paragraph of a release's notes is the summary the TV show
 4. The Magisk module installs the app in `priv-app`, because the speech service needs a `signature|privileged` permission, and runs a small watchdog every 10 seconds. While the app is alive it keeps the switch on. If the app dies, the switch goes off, Alexa gets the button back, and the app is restarted. The same script looks once a second for an `alexa` file the app leaves in its shared folder (when you say just "Alexa"): it switches the diversion off for 15 seconds, so the next press starts real Alexa, then switches it back on. The switch is read live, which is also why the watchdog's hand-back works at once.
    Which app gets a search: `Targets.named()` finds a trailing "on/in <app>" in what was said; `VoiceService` uses that app if the "Say the app's name" switch is on and the app is installed, otherwise your chosen one. Amazon's results screen (`com.amazon.tv.launcher/.deeplink.activity.SearchResultsDeepLinkActivityDI`) is started with the extras `term`, `text` and `source`.
 5. TiviMate has no search link, so it is driven like a person with a remote, through the accessibility helper (`TiviMateHelper`; `res/xml/tivimate_helper.xml` makes Android send it events from TiviMate only, and the code reads the screen only while TiviMate is in front). The service puts the words in `PendingSearch` and opens TiviMate; the helper then, on each look at TiviMate's screen, does the first thing that fits: fills in the search box (`ACTION_SET_TEXT`, which never raises Amazon's on-screen keyboard), waits until TiviMate's results have settled (a Movies or Shows row has cards and 0.3 s of quiet, else 0.7 s of quiet, at most 3 s, because it adds its rows one at a time; `TiviMatePrewarm.readyToChoose`), then focuses the best card: `ResultChooser` prefers films and series over channels and picks the title that best matches your words (among equal matches, a plain "Sky News" before a prefixed one, then the stick's own country's "UK: Sky News" before other countries'), and saying "channel" at the end ("bluey channel") prefers the channel instead; or clicks the menu's Search item (only when the menu has the remote's focus); or presses Back, at most four times, to reach the menu (the next Back comes as soon as TiviMate's screen has changed, with 0.8 s as a fallback). When the voice button goes down with TiviMate chosen, the service puts a "getting ready" search in `PendingSearch`, opens TiviMate if needed and lets the helper take it to the menu with Search showing: it never clicks Search and never types before the words arrive, because clicking Search on an empty box raises Amazon's keyboard. The words then fill in the same search. `TiviMatePrewarm.shouldPrewarm` decides from the setting, the app in front and whether a channel is playing. A full-screen, non-focusable `TYPE_APPLICATION_OVERLAY` card covers the screen from the words arriving until the match is focused (no new permission). It gives up quietly after 10 seconds. `service.sh` adds or removes the helper's entry in the accessibility list (`a11y_list.sh`, tested with plain `sh`) whenever the chosen app changes, and removes it before staging "Go back" or an automatic revert, since older versions know nothing about it.
-6. Amazon's home screen hides system apps, so the settings screen can't have a tile of its own. The module carries a second, ordinary app (`com.metaljay.voicesearchtile`, in `tile/`) whose only job is to show a **Voice Search** tile and open the settings screen. The system app has no home-screen entry of its own, so home screens that do show system apps list Voice Search once. `service.sh` installs the tile app at boot when it is missing or has changed.
+6. Amazon's home screen hides system apps, so the settings screen can't have a tile of its own. Voice Search therefore has a second, ordinary app, the **setup app** (`com.metaljay.voicesearchtile`, in `tile/`, built to `build/VoiceSearch.apk`). Being an ordinary APK, an app store can list it. With the add-on running, its tile opens the settings screen (`TileActivity`). Without it, it opens the setup screens (`SetupActivity`): it asks Magisk for root with `su -c id` (only after a button that says Magisk will ask), warns, checks the stick (`DeviceSupport`: the tested model and Fire OS line), downloads the release zip (`ReleaseFetch`, `AssetPicker`, shared with the main app), proves it genuine against its own signing certificate (`PackageVerifier`), and runs `magisk --install-module`. It asks for the internet permission only. The add-on also carries a copy, which `service.sh` installs at boot only when the setup app is missing or the copy has a higher version code (`tile_check.sh`, never a downgrade, because the app is also installed on its own). The system app has no home-screen entry of its own, so home screens that do show system apps list Voice Search once. Removing: the settings screen's **Remove Voice Search** sends a `remove` request to `service.sh`, which creates Magisk's own `remove` file; the app itself never gets root.
 7. Early in each boot, `post-fs-data.sh` clears Android's cached details for this app when the app file has changed. Without it, an updated module kept the old version's details: Android trusts its cache while the cache is newer than the app's folder, and through Magisk that folder shows the boot-time clock, which on Fire TV reads 1 Jan 2022.
 
 8. Updates (`UpdatesActivity`, `Updater`, `UpdateJob`): a scheduled job asks GitHub for the latest release about every six hours, and `UpdateSchedule` decides whether a check is due. `PackageVerifier` proves a download genuine before the app asks `service.sh` to install it; the two talk through a `request` and a `status` file in the app's private folder. After an update `service.sh` watches the new version's first two minutes and puts the old one back if the app never runs.
@@ -118,7 +138,7 @@ The build script was written on macOS and downloads nothing. It needs a JDK (25 
 
 ```bash
 ./build.sh test   # unit tests: word tidying, choosing and naming the app, "Alexa" detection, ordering results, versions, update schedule, release notes, update-zip checks, choosing the download, the accessibility-list edits, the boot-guard check
-./build.sh        # tests, then build/StremioVoice.apk, build/VoiceSearchTile.apk and build/voice_search.zip (signed; also copied to build/stremio_voice.zip, the old name)
+./build.sh        # tests, then build/StremioVoice.apk, the setup app build/VoiceSearch.apk (also build/VoiceSearchTile.apk, the same file) and build/voice_search.zip (signed; also copied to build/stremio_voice.zip, the old name)
 ```
 
 The first build creates `debug.keystore` (git-ignored). Keep it: updates installed with `adb install -r` must be signed with the same key, and the self-updater only accepts a zip signed with it. If you build your own copy, your key signs your zips, so installs of your build update from your build only; set the repository address in `Updater.java` to your own GitHub project.
@@ -161,7 +181,7 @@ Maintainers: the report is built by `ReportBuilder` (with `Redactor`) and drawn 
 |---|---|
 | `build.sh` | test and build script (also runs the boot guard `check_whitelist.sh` and the token scan `check_no_tokens.sh`) |
 | `app/` | the Android app (plain Java; the only library is the QR generator below) |
-| `tile/` | the small tile app that opens the settings screen |
+| `tile/` | the setup app: the home-screen tile, and the screens that install and remove the add-on |
 | `test/` | plain-Java tests for `QueryCleaner`, `Targets`, `ResultRanker`, `ResultChooser`, `Versions`, `UpdateSchedule`, `ReleaseNotes`, `PackageVerifier` and `AssetPicker`, `Redactor` and `ReportBuilder`, plus plain-`sh` tests of the accessibility-list edits, the boot guard and the token scan |
 | `module/` | the Magisk module: `module.prop`, `post-fs-data.sh`, `service.sh`, `a11y_list.sh`, `uninstall.sh`, the permission whitelist |
 | `docs/` | screenshots |

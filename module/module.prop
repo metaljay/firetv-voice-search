@@ -1,6 +1,6 @@
 id=stremio_voice
 name=Fire TV Voice Search
-version=2.6
-versionCode=10
+version=2.7
+versionCode=11
 author=metaljay
 description=Hold the voice button and say a title (and, if you like, "on" an app): results open in Stremio, Nuvio, WuPlay, TiviMate, SmartTube or Amazon search (choose the default in the Voice Search app).

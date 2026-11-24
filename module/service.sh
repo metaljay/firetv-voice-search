@@ -2,14 +2,16 @@
 # Voice Search: runs as root late in every boot (Magisk "late_start service").
 #
 # 1. Waits for the system, then gives the app the two things it needs.
-# 2. Installs (or updates) the small "Voice Search" tile app, which puts a
-#    tile on Amazon's home screen; that screen hides system apps like ours.
+# 2. Installs the setup app (the "Voice Search" tile app, which puts a tile on Amazon's home
+#    screen; that screen hides system apps like ours) when it is missing or the add-on's copy is
+#    newer. Never a downgrade.
 # 3. Starts the app's service.
 # 4. Every second (the app's "Alexa" hand-off, and the TiviMate helper), every 10 seconds (the rest):
 #    - points the voice button at our app while the app is alive, and hands it
 #      back to Alexa when the app is not (restarting the app);
 #    - does what the app asked for in its updates folder: install a downloaded
-#      update, go back to the kept previous version, or restart the stick;
+#      update, go back to the kept previous version, remove the add-on (at the next
+#      restart), or restart the stick;
 #    - after an update, watches the first start of the new version and goes back
 #      to the old one if the new one never runs;
 #    - when the app has asked for it (a file called "alexa" in its folder), gives the voice
@@ -92,6 +94,7 @@ write_status() {
     tmp="$UPD/status.tmp"
     {
         echo "running=$RUN_VER"
+        [ -f "$MODDIR/remove" ] && echo "removing=1"
         [ -f "$STAGED/module.prop" ] && echo "staged=$(prop "$STAGED/module.prop" version)"
         [ -f "$BACKUP/module.prop" ] && echo "prev=$(prop "$BACKUP/module.prop" version)"
         # The notice file holds the message, then the version that failed (the app skips it).
@@ -233,9 +236,17 @@ do_goback() {
     return 0
 }
 
+# remove: take the add-on away at the next restart (the same "remove" file Magisk's own Remove
+# button creates; uninstall.sh then takes our accessibility entry out). A restart is then allowed.
+do_remove() {
+    touch "$MODDIR/remove" || { fail "couldn't mark the add-on for removal"; return 1; }
+    say "removal requested, restart to finish"
+    return 0
+}
+
 # restart: only when something is waiting for it. The caller restarts after writing the status.
 do_restart() {
-    if [ ! -f "$STAGED/module.prop" ]; then
+    if [ ! -f "$STAGED/module.prop" ] && [ ! -f "$MODDIR/remove" ]; then
         fail "nothing is waiting for a restart"
         return 1
     fi
@@ -258,9 +269,10 @@ handle_request() {
             LAST_TOKEN=${rest#* }
             do_install "$arg"
             ;;
-        goback|restart|ack)
+        goback|restart|ack|remove)
             LAST_TOKEN=$rest
             case "$cmd" in
+                remove) do_remove ;;
                 goback) do_goback ;;
                 restart) do_restart ;;
                 ack) rm -f "$NOTICE" ;;
@@ -385,20 +397,23 @@ check_alexa() {
 TILE_PKG=com.metaljay.voicesearchtile
 TILE_APK="$MODDIR/tile/VoiceSearchTile.apk"
 TILE_STAMP="$MODDIR/tile.sha256"
+TILE_VERSION="$MODDIR/tile.version"   # the versionCode of the app in tile/, written by build.sh
 
-# Installs the tile app when it is missing or the add-on carries a different copy.
+. "$MODDIR/tile_check.sh"   # tile_should_install
+
+# Installs the setup app when it is missing, or when the add-on's copy has a higher versionCode
+# than the installed one (see tile_check.sh). Never a downgrade: the app is also installed on its
+# own from app stores, and a newer copy stays.
 install_tile() {
     [ -f "$TILE_APK" ] || return 0
+    tile_should_install "$TILE_PKG" "$TILE_VERSION" || return 0
     new=$(sha256sum "$TILE_APK" | cut -d' ' -f1)
-    if pm path "$TILE_PKG" >/dev/null 2>&1 && [ "$new" = "$(cat "$TILE_STAMP" 2>/dev/null)" ]; then
-        return 0
-    fi
     # The package manager can't read the add-on's folder, so hand it a copy.
     tmp=/data/local/tmp/VoiceSearchTile.apk
     cp "$TILE_APK" "$tmp" && chmod 644 "$tmp"
-    # -d lets going back install an older tile; if Android refuses that, replace it
-    # (the tile holds no settings).
-    if pm install -r -d "$tmp" >/dev/null 2>&1 \
+    # If Android refuses the in-place update (a copy signed with another key), replace it
+    # (the setup app holds no settings).
+    if pm install -r "$tmp" >/dev/null 2>&1 \
         || { pm uninstall "$TILE_PKG" >/dev/null 2>&1; pm install "$tmp" >/dev/null 2>&1; }; then
         echo "$new" > "$TILE_STAMP"
         say "tile app installed"

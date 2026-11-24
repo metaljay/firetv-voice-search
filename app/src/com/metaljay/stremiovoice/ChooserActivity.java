@@ -1,6 +1,10 @@
 package com.metaljay.stremiovoice;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -16,6 +20,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -153,6 +158,7 @@ public class ChooserActivity extends Activity {
         bottom.addView(updatesButton());
         bottom.addView(supportButton());
         bottom.addView(reportButton());
+        bottom.addView(removeButton());
 
         LinearLayout notes = new LinearLayout(this);
         notes.setOrientation(LinearLayout.VERTICAL);
@@ -421,6 +427,95 @@ public class ChooserActivity extends Activity {
         });
         ((LinearLayout.LayoutParams) b.getLayoutParams()).leftMargin = dp(16);
         return b;
+    }
+
+    /** "Remove Voice Search": asks first, then has the add-on take itself away at the next restart. */
+    private View removeButton() {
+        View b = actionButton("Remove Voice Search", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new AlertDialog.Builder(ChooserActivity.this)
+                        .setTitle("Remove Voice Search?")
+                        .setMessage("Remove Voice Search? Alexa gets the button back after a restart.")
+                        .setPositiveButton("Remove", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface d, int which) {
+                                remove();
+                            }
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+            }
+        });
+        ((LinearLayout.LayoutParams) b.getLayoutParams()).leftMargin = dp(16);
+        return b;
+    }
+
+    /** Sends the "remove" request (the add-on does it as root); no root is needed here. */
+    private void remove() {
+        updateNote.setText("Removing\u2026");
+        updateNote.setVisibility(View.VISIBLE);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String problem;
+                try {
+                    String token = Updater.request(ChooserActivity.this, "remove");
+                    problem = Updater.waitForResult(ChooserActivity.this, token, 30000);
+                } catch (IOException e) {
+                    problem = e.getMessage();
+                }
+                final String why = problem;
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isFinishing() || isDestroyed()) return;
+                        if (why != null) {
+                            updateNote.setText("Couldn't remove it: " + why);
+                            return;
+                        }
+                        updateNote.setText("Voice Search will be removed at the next restart.");
+                        new AlertDialog.Builder(ChooserActivity.this)
+                                .setTitle("Voice Search will be removed")
+                                .setMessage("Restart the stick to finish. After that you can uninstall the Voice Search "
+                                        + "app from Fire TV Settings, Applications.")
+                                .setPositiveButton("Restart now", new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface d, int which) {
+                                        restart();
+                                    }
+                                })
+                                .setNegativeButton("Later", null)
+                                .show();
+                    }
+                });
+            }
+        }, "remove-request").start();
+    }
+
+    /** Asks the add-on to restart the stick (the same request the Updates screen uses). */
+    private void restart() {
+        updateNote.setText("Restarting\u2026");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String problem;
+                try {
+                    String token = Updater.request(ChooserActivity.this, "restart");
+                    problem = Updater.waitForResult(ChooserActivity.this, token, 30000);
+                } catch (IOException e) {
+                    problem = e.getMessage();
+                }
+                if (problem == null) return; // answered "ok": the stick is restarting
+                final String why = problem;
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateNote.setText("Couldn't restart: " + why);
+                    }
+                });
+            }
+        }, "remove-restart").start();
     }
 
     private View actionButton(String label, View.OnClickListener onClick) {

@@ -6,7 +6,9 @@
 #
 # Outputs (in build/, which git ignores):
 #   build/StremioVoice.apk     the signed app
-#   build/VoiceSearchTile.apk  the small tile app that opens the settings screen
+#   build/VoiceSearchTile.apk  the setup app (tile + setup screens), an ordinary APK
+#   build/VoiceSearch.apk      the same file under the name releases carry (what an app
+#                              store such as OpenShelf lists)
 #   build/voice_search.zip    the Magisk add-on (carries both), signed so the app's
 #                              updater accepts it
 #   build/stremio_voice.zip   the same file under its old name. Attach BOTH to every
@@ -51,6 +53,7 @@ run_tests() {
         "$APP_SRC/com/metaljay/stremiovoice/TiviMatePrewarm.java" \
         "$APP_SRC/com/metaljay/stremiovoice/Redactor.java" \
         "$APP_SRC/com/metaljay/stremiovoice/ReportBuilder.java" \
+        tile/src/com/metaljay/voicesearchtile/DeviceSupport.java test/DeviceSupportTest.java \
         test/RedactorTest.java test/ReportBuilderTest.java \
         test/QueryCleanerTest.java test/TargetsTest.java test/ResultRankerTest.java \
         test/VersionsTest.java test/UpdateScheduleTest.java test/ReleaseNotesTest.java \
@@ -66,8 +69,13 @@ run_tests() {
     "$JAVA" -cp build/test-classes TiviMatePrewarmTest
     "$JAVA" -cp build/test-classes RedactorTest
     "$JAVA" -cp build/test-classes ReportBuilderTest
+    "$JAVA" -cp build/test-classes DeviceSupportTest
     echo "== Accessibility-list tests (plain sh)"
     sh test/a11y_list_test.sh
+    echo "== Setup-app install rule tests (plain sh)"
+    sh test/tile_check_test.sh
+    echo "== Remove request tests (plain sh)"
+    sh test/remove_request_test.sh
     echo "== Boot guard tests (plain sh)"
     sh test/check_whitelist_test.sh
     echo "== Token scan tests (plain sh)"
@@ -119,14 +127,28 @@ build_apk() {
     echo "Built build/StremioVoice.apk"
 }
 
-# The tile: a tiny ordinary app, so Amazon's home screen shows a "Voice Search"
-# tile (it hides system apps). It reuses the main app's icon and banner.
+# The setup app ("the tile"): an ordinary app, so Amazon's home screen shows a "Voice Search"
+# tile (it hides system apps) and an app store can list it. It opens the settings when the
+# add-on runs, and otherwise walks through installing the add-on. It reuses the main app's icon
+# and banner, and compiles a few main-app sources (the zip checker, release fetch, QR drawing)
+# straight from app/src instead of copying them. Its version code goes in tile.version, for the
+# add-on's "install only if newer" rule.
+TILE_SHARED="$APP_SRC/com/metaljay/stremiovoice/PackageVerifier.java
+$APP_SRC/com/metaljay/stremiovoice/AssetPicker.java
+$APP_SRC/com/metaljay/stremiovoice/Versions.java
+$APP_SRC/com/metaljay/stremiovoice/ReleaseFetch.java
+$APP_SRC/com/metaljay/stremiovoice/QrView.java
+$APP_SRC/io/nayuki/qrcodegen/BitBuffer.java
+$APP_SRC/io/nayuki/qrcodegen/DataTooLongException.java
+$APP_SRC/io/nayuki/qrcodegen/QrCode.java
+$APP_SRC/io/nayuki/qrcodegen/QrSegment.java"
+
 build_tile() {
-    echo "== Tile app"
+    echo "== Setup app (tile)"
     rm -rf build/tile && mkdir -p build/tile/classes build/tile/dex
-    # shellcheck disable=SC2046
+    # shellcheck disable=SC2046,SC2086
     "$JAVAC" --release 8 -Xlint:-options -Xlint:all -d build/tile/classes \
-        -classpath "$ANDROID_JAR" $(find tile/src -name '*.java')
+        -classpath "$ANDROID_JAR" $(find tile/src -name '*.java') $TILE_SHARED
     "$BUILD_TOOLS/d8" --lib "$ANDROID_JAR" --min-api 28 --output build/tile/dex \
         $(find build/tile/classes -name '*.class')
     "$BUILD_TOOLS/aapt2" link --manifest tile/AndroidManifest.xml -I "$ANDROID_JAR" \
@@ -138,7 +160,10 @@ build_tile() {
         --ks-pass "pass:$KEY_PASS" --key-pass "pass:$KEY_PASS" \
         --out build/VoiceSearchTile.apk build/tile/aligned.apk
     "$BUILD_TOOLS/apksigner" -J-enable-native-access=ALL-UNNAMED verify build/VoiceSearchTile.apk
-    echo "Built build/VoiceSearchTile.apk"
+    cp build/VoiceSearchTile.apk build/VoiceSearch.apk
+    sed -n 's/.*android:versionCode="\([0-9]*\)".*/\1/p' tile/AndroidManifest.xml | head -n 1 > build/tile.version
+    [ -s build/tile.version ] || { echo "no versionCode found in tile/AndroidManifest.xml" >&2; exit 1; }
+    echo "Built build/VoiceSearchTile.apk and build/VoiceSearch.apk (versionCode $(cat build/tile.version))"
 }
 
 build_module() {
@@ -149,7 +174,8 @@ build_module() {
     cp build/StremioVoice.apk build/module/system/priv-app/StremioVoice/StremioVoice.apk
     mkdir -p build/module/tile
     cp build/VoiceSearchTile.apk build/module/tile/VoiceSearchTile.apk
-    (cd build/module && zip -q -X -D -r ../voice_search.zip module.prop post-fs-data.sh service.sh a11y_list.sh uninstall.sh system tile)
+    cp build/tile.version build/module/tile.version
+    (cd build/module && zip -q -X -D -r ../voice_search.zip module.prop post-fs-data.sh service.sh a11y_list.sh tile_check.sh tile.version uninstall.sh system tile)
     # Sign the zip as a jar with the key that signs the app. The app refuses an update
     # zip unless it carries this signature (see PackageVerifier). Magisk skips META-INF,
     # so the signature files do not end up in the installed module.

@@ -9,13 +9,13 @@ import android.view.View;
 import io.nayuki.qrcodegen.QrCode;
 
 /** Draws a QR code, black on white with the quiet border scanners need, as large as the view allows. */
-final class QrView extends View {
+public final class QrView extends View {
 
     private static final int BORDER = 4;
     private final QrCode qr;
     private final Paint paint = new Paint();
 
-    QrView(Context context, QrCode qr) {
+    public QrView(Context context, QrCode qr) {
         super(context);
         this.qr = qr;
         paint.setAntiAlias(false);

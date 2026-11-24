@@ -14,19 +14,12 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
@@ -55,12 +48,6 @@ final class Updater {
     private static final String KEY_AVAIL_URL = "avail_url";
     private static final String KEY_NOTIFIED = "notified_version";
     private static final String KEY_NOTICE_SHOWN = "notice_shown";
-
-    private static final String LATEST_URL =
-            "https://api.github.com/repos/metaljay/firetv-voice-search/releases/latest";
-    private static final int TIMEOUT_MS = 15000;
-    private static final int MAX_JSON_BYTES = 512 * 1024;
-    private static final int MAX_ZIP_BYTES = 30 * 1024 * 1024;
 
     private static final String CHANNEL_ID = "voice_search_updates";
     private static final int NOTIFICATION_ID = 2;
@@ -181,43 +168,22 @@ final class Updater {
     }
 
     private static Release fetchLatest(Context c) throws IOException {
-        String address = LATEST_URL;
+        String address = ReleaseFetch.LATEST_URL;
         boolean testing = testing(c);
         if (testing) address = new String(readFile(testFile(c)), StandardCharsets.UTF_8).trim();
-        JSONObject o;
-        try {
-            o = new JSONObject(new String(get(address, testing, MAX_JSON_BYTES), StandardCharsets.UTF_8));
-        } catch (JSONException e) {
-            throw new UpdateException("GitHub's reply wasn't understood");
-        }
-        if (o.optBoolean("draft") || o.optBoolean("prerelease")) return null; // never offered
-        String version = Versions.clean(o.optString("tag_name", ""));
-        if (version == null) return null;
-        // The zip is attached under its current name and the old one; the current name wins.
-        java.util.List<String> names = new java.util.ArrayList<>();
-        java.util.Map<String, String> urls = new java.util.HashMap<>();
-        JSONArray assets = o.optJSONArray("assets");
-        for (int i = 0; assets != null && i < assets.length(); i++) {
-            JSONObject a = assets.optJSONObject(i);
-            if (a == null) continue;
-            String name = a.optString("name", "");
-            names.add(name);
-            urls.put(name, a.optString("browser_download_url", null));
-        }
-        String picked = AssetPicker.pick(names);
-        String url = picked == null ? null : urls.get(picked);
-        if (url == null) {
-            if (!Versions.isNewer(version, installedVersion(c))) return null;
+        ReleaseFetch.Info info = ReleaseFetch.fetchLatest(address, testing);
+        if (info == null) return null;
+        if (info.url == null) {
+            if (!Versions.isNewer(info.version, installedVersion(c))) return null;
             throw new UpdateException("the release has no " + AssetPicker.NEW_NAME);
         }
-        return new Release(version, o.optString("body", ""), url);
+        return new Release(info.version, info.notes, info.url);
     }
 
     // ----- download and proof -----
 
     /** Called with bytes so far and the total (0 when unknown). */
-    interface Progress {
-        void onBytes(long done, long total);
+    interface Progress extends ReleaseFetch.Progress {
     }
 
     /**
@@ -232,7 +198,7 @@ final class Updater {
         part.delete();
         zip.delete();
         try {
-            download(release.url, testing(c), part, progress);
+            ReleaseFetch.download(release.url, testing(c), part, progress);
             PackageVerifier.Result r = PackageVerifier.verify(part, ownCertificate(c));
             if (!r.ok) throw new UpdateException("the download isn't genuine (" + r.reason + ")");
             if (!release.version.equals(r.versionName)) {
@@ -258,75 +224,9 @@ final class Updater {
         }
     }
 
-    private static void download(String address, boolean testing, File to, Progress progress) throws IOException {
-        URLConnection conn = open(address, testing);
-        long total = conn.getContentLengthLong();
-        if (total > MAX_ZIP_BYTES) throw new UpdateException("the download is too big");
-        long done = 0;
-        try (InputStream in = conn.getInputStream(); OutputStream out = new FileOutputStream(to)) {
-            byte[] buf = new byte[32 * 1024];
-            int n;
-            while ((n = in.read(buf)) > 0) {
-                done += n;
-                if (done > MAX_ZIP_BYTES) throw new UpdateException("the download is too big");
-                out.write(buf, 0, n);
-                if (progress != null) progress.onBytes(done, total);
-            }
-        } catch (UpdateException e) {
-            throw e;
-        } catch (IOException e) {
-            if (isOffline(e)) throw e;
-            throw new UpdateException("the download was interrupted");
-        } finally {
-            if (conn instanceof HttpURLConnection) ((HttpURLConnection) conn).disconnect();
-        }
-        if (total > 0 && done != total) throw new UpdateException("the download was cut short");
-    }
-
-    private static byte[] get(String address, boolean testing, int max) throws IOException {
-        URLConnection conn = open(address, testing);
-        try (InputStream in = conn.getInputStream()) {
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[8 * 1024];
-            int n;
-            while ((n = in.read(buf)) > 0) {
-                if (out.size() + n > max) throw new UpdateException("GitHub's reply was too big");
-                out.write(buf, 0, n);
-            }
-            return out.toByteArray();
-        } finally {
-            if (conn instanceof HttpURLConnection) ((HttpURLConnection) conn).disconnect();
-        }
-    }
-
-    /** Only https:// is ever used, except when the root-only test file is present. */
-    private static URLConnection open(String address, boolean testing) throws IOException {
-        URL url = new URL(address);
-        String protocol = url.getProtocol();
-        if (!"https".equals(protocol) && !(testing && ("http".equals(protocol) || "file".equals(protocol)))) {
-            throw new UpdateException("refusing a non-https address");
-        }
-        URLConnection conn = url.openConnection();
-        conn.setConnectTimeout(TIMEOUT_MS);
-        conn.setReadTimeout(TIMEOUT_MS);
-        if (conn instanceof HttpURLConnection) {
-            conn.setRequestProperty("User-Agent", "FireTV-VoiceSearch");
-            conn.setRequestProperty("Accept", "application/vnd.github+json");
-            int code = ((HttpURLConnection) conn).getResponseCode();
-            if (code != 200) {
-                ((HttpURLConnection) conn).disconnect();
-                throw new UpdateException(code == 404 ? "no release found" : "GitHub answered HTTP " + code);
-            }
-        }
-        return conn;
-    }
-
     /** True for the failures that mean "no connection". */
     static boolean isOffline(IOException e) {
-        return e instanceof java.net.UnknownHostException
-                || e instanceof java.net.ConnectException
-                || e instanceof java.net.NoRouteToHostException
-                || e instanceof java.net.SocketTimeoutException;
+        return ReleaseFetch.isOffline(e);
     }
 
     // ----- the files shared with the add-on's service.sh -----

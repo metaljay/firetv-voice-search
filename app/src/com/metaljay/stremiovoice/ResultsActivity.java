@@ -257,15 +257,8 @@ public class ResultsActivity extends Activity {
         VoiceService.timing("Cinemeta request start");
         Future<List<ResultRanker.Item>> films;
         Future<List<ResultRanker.Item>> shows;
-        Future<List<ResultRanker.Item>>[] early = earlyTake(words);
-        if (early != null) {
-            Log.i(VoiceService.TAG, "pick-list: using the lookup started while talking");
-            films = early[0];
-            shows = early[1];
-        } else {
-            films = pool.submit(fetch("movie"));
-            shows = pool.submit(fetch("series"));
-        }
+        films = pool.submit(fetch("movie"));
+        shows = pool.submit(fetch("series"));
         List<ResultRanker.Item> filmList = get(films);
         List<ResultRanker.Item> showList = get(shows);
         final boolean offline = filmList == null && showList == null;
@@ -300,10 +293,7 @@ public class ResultsActivity extends Activity {
     }
 
     private Callable<List<ResultRanker.Item>> fetch(final String type) {
-        return fetchOf(words, type);
-    }
-
-    private static Callable<List<ResultRanker.Item>> fetchOf(final String forWords, final String type) {
+        final String forWords = words;
         return new Callable<List<ResultRanker.Item>>() {
             @Override
             public List<ResultRanker.Item> call() throws Exception {
@@ -322,51 +312,6 @@ public class ResultsActivity extends Activity {
                 return out;
             }
         };
-    }
-
-    // ----- EXPERIMENT: look up while the user is still talking (hidden pref "early_lookup", off by default) -----
-    // Only ever filled when that pref is on, so with it off nothing here runs.
-
-    private static final ExecutorService EARLY_POOL = Executors.newFixedThreadPool(4);
-    private static final java.util.Map<String, Future<List<ResultRanker.Item>>[]> EARLY =
-            new java.util.LinkedHashMap<>();
-
-    /** Opens (and keeps alive) the connection to the catalogue, so the first real lookup skips the handshake. */
-    static void warmConnection() {
-        EARLY_POOL.execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    download("https://v3-cinemeta.strem.io/manifest.json");
-                    VoiceService.timing("Cinemeta connection warmed");
-                } catch (Exception e) {
-                    Log.w(VoiceService.TAG, "warm-up failed: " + e);
-                }
-            }
-        });
-    }
-
-    /** Starts looking these words up (films and series), unless that was already done. */
-    @SuppressWarnings("unchecked")
-    static synchronized void earlyLookup(String forWords) {
-        if (forWords == null || forWords.isEmpty() || EARLY.containsKey(forWords)) return;
-        if (EARLY.size() >= 8) EARLY.remove(EARLY.keySet().iterator().next());
-        Future<List<ResultRanker.Item>>[] pair = (Future<List<ResultRanker.Item>>[]) new Future[2];
-        pair[0] = EARLY_POOL.submit(fetchOf(forWords, "movie"));
-        pair[1] = EARLY_POOL.submit(fetchOf(forWords, "series"));
-        EARLY.put(forWords, pair);
-        VoiceService.timing("early lookup started for \"" + forWords + "\"");
-    }
-
-    /** The lookup already started for exactly these words, or null. Forgets all early lookups. */
-    static synchronized Future<List<ResultRanker.Item>>[] earlyTake(String forWords) {
-        Future<List<ResultRanker.Item>>[] hit = EARLY.get(forWords);
-        EARLY.clear();
-        return hit;
-    }
-
-    static synchronized void earlyForget() {
-        EARLY.clear();
     }
 
     private void loadPoster(final String url, final ImageView into) {
